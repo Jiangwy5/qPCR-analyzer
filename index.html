@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>qPCR 相对定量分析器 · Final</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
+<style>
+:root{
+  --bg:#f5f7fb;--card:#ffffff;--ink:#172033;--muted:#667085;--line:#d8dee9;
+  --accent:#2f6fed;--accent2:#eaf1ff;--warn:#b25e09;--warnbg:#fff4e5;
+  --bad:#b42318;--badbg:#fff0ef;--good:#027a48;--goodbg:#ecfdf3;--shadow:0 8px 28px rgba(28,39,60,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,"Segoe UI","PingFang SC","Microsoft YaHei",Arial,sans-serif}
+header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.header-inner{max-width:1500px;margin:auto;padding:16px 22px;display:flex;gap:20px;align-items:center;justify-content:space-between}
+h1{font-size:21px;margin:0}.subtitle{font-size:12px;color:var(--muted);margin-top:3px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+button,.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 12px;font-weight:600;color:var(--ink);cursor:pointer}
+button:hover{border-color:#9db7f4;background:#fbfdff}.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.danger{color:var(--bad)}.ghost{background:transparent}.small{padding:6px 9px;font-size:12px}
+main{max-width:1500px;margin:0 auto;padding:20px 22px 40px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}.tab{padding:9px 13px;border-radius:999px;background:#fff;border:1px solid var(--line);cursor:pointer;font-weight:600;font-size:13px}.tab.active{background:var(--accent);color:white;border-color:var(--accent)}
+.panel{display:none}.panel.active{display:block}.card{background:var(--card);border:1px solid #e5e9f0;border-radius:14px;box-shadow:var(--shadow);padding:18px;margin-bottom:16px}
+.card h2{font-size:17px;margin:0 0 12px}.card h3{font-size:14px;margin:18px 0 10px}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media(max-width:980px){.grid2,.grid3{grid-template-columns:1fr}}
+textarea{width:100%;min-height:185px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:11px;font:12px Consolas,monospace;background:#fbfcfe}
+input,select{border:1px solid var(--line);border-radius:8px;padding:8px 9px;background:#fff;min-height:36px;color:var(--ink)}
+label{font-size:12px;color:var(--muted);font-weight:600}.field{display:flex;flex-direction:column;gap:5px}.inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.note{font-size:12px;color:var(--muted);line-height:1.55}.callout{border:1px solid #bfd2ff;background:#f4f7ff;border-radius:10px;padding:11px 13px;font-size:12px;line-height:1.55}.warning{background:var(--warnbg);border-color:#f6c67a;color:#7a3b00}.error{background:var(--badbg);border-color:#f2a4a0;color:#7a271a}.ok{background:var(--goodbg);border-color:#a6f4c5;color:#05603a}
+.table-wrap{overflow:auto;max-height:520px;border:1px solid var(--line);border-radius:10px}table{border-collapse:collapse;width:100%;font-size:12px;background:#fff}th,td{padding:8px 9px;border-bottom:1px solid #edf0f4;text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#f8fafc;z-index:2;color:#475467;font-weight:700}tr:last-child td{border-bottom:none}.center{text-align:center}.num{text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;padding:2px 7px;border-radius:999px;font-size:11px;font-weight:700}.badge.warn{color:var(--warn);background:var(--warnbg)}.badge.bad{color:var(--bad);background:var(--badbg)}.badge.good{color:var(--good);background:var(--goodbg)}.badge.gray{background:#eef2f6;color:#475467}
+.mapping-row{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;align-items:center;margin:7px 0}.preview{max-height:230px}
+.plate-workspace{display:grid;grid-template-columns:minmax(360px,430px) minmax(820px,1fr);gap:16px;align-items:start}
+@media(max-width:1250px){.plate-workspace{grid-template-columns:1fr}.plate-assignment-card{position:static!important}}
+.plate-assignment-card{position:sticky;top:92px}.plate-assignment-card .table-wrap{max-height:460px}.plate-assignment-card .catalog-table th:nth-child(1){width:34px}.plate-assignment-card .catalog-table th:nth-child(2),.plate-assignment-card .catalog-table th:nth-child(3){min-width:150px}
+.plate-wrap{overflow:auto}.plate{user-select:none;display:grid;grid-template-columns:34px repeat(12,minmax(58px,1fr));gap:4px;min-width:820px}.plate .head,.plate .rowhead{display:flex;align-items:center;justify-content:center;color:#667085;font-size:11px;font-weight:700}.well{height:64px;border:1px solid #cfd6e2;border-radius:8px;background:#fbfcfe;position:relative;padding:5px;cursor:crosshair;overflow:hidden}.well:hover{border-color:#7da2f7}.well.selected{outline:3px solid rgba(47,111,237,.42);border-color:var(--accent)}.well.excluded{border:2px solid var(--bad);box-shadow:inset 0 0 0 2px rgba(180,35,24,.10)}.well.manual::after{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent);position:absolute;top:4px;right:4px}.well-id{font-size:10px;font-weight:800;color:#475467}.well-ct{font-size:16px;font-weight:800;margin-top:3px}.well-meta{font-size:9.5px;color:#667085;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.side-stick{position:sticky;top:92px}.selection-count{font-weight:800;color:var(--accent)}
+.role-row{display:grid;grid-template-columns:1fr 180px 140px;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid #edf0f4}.role-row:last-child{border-bottom:none}.sample-row{display:grid;grid-template-columns:28px 1fr 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px solid #edf0f4}.sample-row:last-child{border-bottom:none}
+.group-pill{padding:7px 10px;background:#f8fafc;border:1px solid var(--line);border-radius:8px;margin:5px 0;cursor:grab;display:flex;justify-content:space-between;align-items:center}.group-pill.dragging{opacity:.5}.group-pill .handle{color:#98a2b3}
+.chart-wrap{height:480px;position:relative}.chart-empty{display:none;align-items:center;justify-content:center;height:100%;min-height:300px;border:1px dashed var(--line);border-radius:10px;background:#fbfcfe;color:var(--muted);font-size:13px;text-align:center;padding:24px}.chart-empty.show{display:flex}.chart-wrap.empty canvas{display:none}.chart-toolbar{display:flex;gap:9px;align-items:end;flex-wrap:wrap;margin-bottom:12px}.chart-toolbar .field{min-width:160px}.metric-warning{display:none;margin:10px 0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:10px 0 16px}@media(max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}.kpi{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px}.kpi b{display:block;font-size:18px;margin-top:3px}.kpi span{font-size:11px;color:var(--muted)}
+.hidden{display:none!important}.muted{color:var(--muted)}.spacer{height:4px}.hr{height:1px;background:#edf0f4;margin:14px 0}.mono{font-family:Consolas,monospace}.right{margin-left:auto}
+input[type="checkbox"]{min-height:auto;width:16px;height:16px}.filename{font-size:12px;color:var(--muted)}
+.plate-legend{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.legend-item{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:4px 8px;font-size:11px}.legend-swatch{width:14px;height:14px;border-radius:4px;border:1px solid rgba(0,0,0,.12);flex:0 0 auto}.plot-controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin:10px 0}.plot-controls .field{min-width:180px}.plot-note{margin:10px 0}.copy-ok{color:var(--good);font-size:12px;font-weight:700}
+.catalog-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media(max-width:850px){.catalog-grid{grid-template-columns:1fr}}
+.catalog-table input[type="text"]{width:100%;min-width:140px}.catalog-entry{display:flex;align-items:center;gap:10px}.catalog-entry>input[type="text"]{flex:1}.catalog-assign{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px;color:#344054}.catalog-assign input{width:16px;height:16px;min-width:16px;margin:0}.combo-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;max-height:360px}.combo-matrix{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%;font-size:11px}.combo-matrix th,.combo-matrix td{position:static;border-right:1px solid #edf0f4;border-bottom:1px solid #edf0f4;padding:7px;text-align:center}.combo-matrix th{background:#f8fafc;position:sticky;top:0;z-index:3}.combo-matrix th:first-child{left:0;z-index:4}.combo-matrix td:first-child{position:sticky;left:0;background:#fff;z-index:2;font-weight:700;text-align:left}.combo-choice{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:84px;padding:5px;border-radius:7px;border:2px solid transparent}.combo-choice.active{border-color:var(--accent);box-shadow:0 0 0 2px rgba(47,111,237,.12)}.combo-choice input{min-height:auto}.combo-count{font-size:10px;color:#667085}.plate-switcher{display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px}.plate-switcher .field{min-width:220px}.active-combo-card{border:1px solid #b9cdfa;background:#f4f7ff;border-radius:10px;padding:10px;font-size:12px}.active-combo-swatch{display:inline-block;width:16px;height:16px;border-radius:4px;border:1px solid rgba(0,0,0,.12);vertical-align:-3px;margin-right:6px}.advanced-box{border-top:1px dashed var(--line);margin-top:12px;padding-top:12px}
+
+.results-subtabs{display:flex;gap:8px;margin:0 0 16px}.results-subtab{padding:9px 16px;border:1px solid var(--line);border-radius:999px;background:#fff;font-size:13px;font-weight:700;cursor:pointer}.results-subtab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.results-subpanel{display:none}.results-subpanel.active{display:block}
+.graph-layout{display:grid;grid-template-columns:minmax(320px,390px) minmax(620px,1fr);gap:16px;align-items:start}@media(max-width:1100px){.graph-layout{grid-template-columns:1fr}}
+.graph-controls{position:sticky;top:92px}.graph-section{border-top:1px solid #edf0f4;padding-top:13px;margin-top:13px}.graph-section:first-child{border-top:0;padding-top:0;margin-top:0}.graph-section h3{margin:0 0 9px;font-size:13px}.graph-control-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.graph-control-grid .wide{grid-column:1/-1}.graph-preview-card{min-height:650px}.graph-preview-card .chart-wrap{height:600px}.multi-list{border:1px solid var(--line);border-radius:9px;background:#fbfcfe;max-height:155px;overflow:auto;padding:6px}.multi-item{display:flex;align-items:center;gap:7px;padding:5px 4px;font-size:12px}.multi-item input{width:15px;height:15px;min-height:auto}.segmented{display:flex;gap:6px;flex-wrap:wrap}.segmented label{border:1px solid var(--line);border-radius:8px;padding:7px 9px;background:#fff;cursor:pointer;color:#344054}.segmented input{margin:0 5px 0 0;vertical-align:-2px}.graph-note{font-size:11px;color:var(--muted);line-height:1.5}.preview-toolbar{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-bottom:10px}.axis-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.appearance-row{display:grid;grid-template-columns:1fr 1fr;gap:9px}.check-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-top:8px}.check-row label{display:inline-flex;align-items:center;gap:6px;color:#344054}.compact-input{width:100%}.graph-builder-title{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-bottom:12px}.graph-builder-title h2{margin:0}.graph-builder-title .note{max-width:620px}
+
+
+.project-status{font-size:11px;color:#475467;margin-top:5px;display:inline-flex;align-items:center;gap:6px;background:#f8fafc;border:1px solid #e5e9f0;border-radius:999px;padding:3px 8px}
+.tabs{position:sticky;top:73px;z-index:35;background:linear-gradient(var(--bg) 78%,rgba(245,247,251,0));padding:9px 0 13px;margin-bottom:10px}
+.tab{display:flex;align-items:center;gap:7px}.tab .step-num{display:inline-flex;width:21px;height:21px;align-items:center;justify-content:center;border-radius:50%;background:#eef2f6;color:#475467;font-size:11px}.tab.active .step-num{background:rgba(255,255,255,.2);color:#fff}.tab.ready:not(.active){border-color:#a6d7bf;background:#f4fbf7}.tab.ready:not(.active) .step-num{background:#dff6e9;color:#027a48}
+.step-intro{display:flex;justify-content:space-between;gap:16px;align-items:center;margin:0 0 14px;padding:12px 14px;background:#fff;border:1px solid #e5e9f0;border-radius:12px}.step-intro b{font-size:14px}.step-intro .note{margin-top:3px}.step-tip{display:inline-flex;white-space:nowrap;align-items:center;gap:6px;color:#475467;background:#f8fafc;border:1px solid #e5e9f0;border-radius:999px;padding:5px 9px;font-size:11px;font-weight:600}
+.step-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px}.step-actions .right-actions{display:flex;gap:8px;flex-wrap:wrap}.nav-next{background:var(--accent);color:#fff;border-color:var(--accent)}
+.audit-box{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}@media(max-width:900px){.audit-box{grid-template-columns:repeat(2,1fr)}}.audit-item{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:#fbfcfe}.audit-item b{display:block;font-size:12px}.audit-item span{font-size:11px;color:var(--muted)}
+.compact-card{padding:14px 16px}.card{box-shadow:0 5px 20px rgba(28,39,60,.055)}
+.flow-warning{margin:10px 0}
+@media(max-width:700px){.step-intro{align-items:flex-start;flex-direction:column}.step-tip{white-space:normal}.header-inner{align-items:flex-start;flex-direction:column}.tabs{top:111px}}
+
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div><h1>qPCR 相对定量分析器</h1><div class="subtitle">96孔板 · 技术复孔 QC · ΔCt / ΔΔCt · 样本基准相对定量 · Excel / TIFF</div><div id="projectStatus" class="project-status">空白项目</div></div>
+    <div class="toolbar">
+      <button id="saveProjectBtn">保存项目</button>
+      <button id="loadProjectBtn">载入项目</button>
+      <input id="projectFile" type="file" accept=".json" class="hidden" />
+      <button id="resetBtn" class="danger">清空项目</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-tab="import"><span class="step-num">1</span>导入数据</div>
+    <div class="tab" data-tab="plate"><span class="step-num">2</span>96孔板</div>
+    <div class="tab" data-tab="qc"><span class="step-num">3</span>技术复孔 QC</div>
+    <div class="tab" data-tab="setup"><span class="step-num">4</span>分析设置</div>
+    <div class="tab" data-tab="results"><span class="step-num">5</span>结果与作图</div>
+  </div>
+
+  <section id="panel-import" class="panel active">
+    <div class="step-intro"><div><b>先把逐孔 Ct/Cq 数据读进来</b><div class="note">推荐使用每个孔一行的原始导出；Roche Excel 会自动寻找最合适的工作表和表头。</div></div><span class="step-tip">导入后自动进入 96孔板</span></div>
+    <div class="grid2">
+      <div class="card">
+        <h2>直接粘贴</h2>
+        <div class="note">可从 Roche 软件或 Excel 直接复制。首行应为列名；支持 Tab、逗号或分号分隔。</div>
+        <textarea id="pasteArea" placeholder="Well\tSample Name\tTarget Name\tCt\nA1\tS1\tTug1\t23.12\nA2\tS1\tTug1\t23.20"></textarea>
+        <div class="inline"><button id="parsePasteBtn" class="primary">读取粘贴数据</button><button id="demoBtn">载入演示数据</button></div>
+      </div>
+      <div class="card">
+        <h2>上传 Excel / CSV</h2>
+        <div class="note">支持 .xlsx / .xls / .csv，并兼容 Roche 导出的 <span class="mono">All Data / Statistic Data</span> 表；会优先选择逐孔 Ct/Cq 数据。可一次选择多个文件：每个文件自动建立为独立 96 孔板并合并分析。单文件仍可手动确认列映射和工作表。</div>
+        <div class="spacer"></div>
+        <input id="dataFile" type="file" accept=".xlsx,.xls,.csv,.txt" multiple />
+        <div id="fileName" class="filename"></div>
+        <div id="sheetPicker" class="field hidden" style="margin-top:10px"><label>Excel 工作表</label><select id="sheetSelect"></select><div id="sheetHint" class="note"></div></div>
+      </div>
+    </div>
+
+    <div id="mappingCard" class="card hidden">
+      <h2>确认列映射</h2>
+      <div class="note">系统会自动猜测列名；你可以手动修改。已兼容 Roche 常见字段：<span class="mono">Cq Mean</span> → Ct/Cq、<span class="mono">Sample Name</span> → Sample、<span class="mono">Gene Name</span> → Target、<span class="mono">Replicate Group Members</span> → Well。若没有 Well，将按导入顺序依次放入 A1–H12。</div>
+      <div class="grid2">
+        <div id="mappingControls"></div>
+        <div>
+          <div class="table-wrap preview"><table id="importPreview"></table></div>
+        </div>
+      </div>
+      <div class="inline" style="margin-top:12px"><button id="applyMappingBtn" class="primary">导入到 96 孔板</button><span id="importMsg" class="note"></span></div>
+    </div>
+
+    <div class="card compact-card">
+      <h2>计算原则（摘要）</h2>
+      <div class="callout">标准模式保留 <span class="mono">ΔCt = Ct(target) − mean Ct(reference)</span>、<span class="mono">2^-ΔCt</span>、<span class="mono">ΔΔCt</span>、<span class="mono">2^-ΔΔCt</span> 和 <span class="mono">log2FC = −ΔΔCt</span>。对照基准为该目的基因所选校准组的 biological replicates（生物学重复）平均 ΔCt。</div>
+    </div>
+      <div class="step-actions"><span class="note">还没有文件也可以先点“载入演示数据”熟悉流程。</span><div class="right-actions"><button class="nav-next" onclick="switchTab('plate')">下一步：96孔板 →</button></div></div>
+  </section>
+
+<section id="panel-plate" class="panel">
+    <div class="step-intro"><div><b>确认每个孔属于哪个 Sample 和 Target</b><div class="note">先在右侧框选孔位，再在左侧勾选 Sample 或 Target 进行赋值；两者互不覆盖。</div></div><span class="step-tip">颜色 = Sample × Target</span></div>
+    <div class="plate-workspace">
+      <div class="card plate-assignment-card">
+        <div class="inline"><h2 style="margin:0">Sample / Target 赋值</h2></div>
+        <div class="note" style="margin:6px 0 10px">先在右侧 96 孔板上拖拽选择一行、一列或若干孔，再勾选对应 Sample 或 Target 后面的“赋值”。两者互不覆盖，可先后设置。</div>
+        <div class="table-wrap"><table class="catalog-table" id="catalogTable"></table></div>
+        <div class="inline" style="margin-top:10px"><button id="addCatalogRowBtn">添加一行</button><button id="syncCatalogBtn">从孔位补全名称</button></div>
+        <div class="hr"></div>
+        <div><b>当前选区：</b><span id="selectionCount" class="selection-count">0</span> 个孔</div>
+        <div id="selectedWellInfo" class="note mono" style="margin-top:6px">—</div>
+        <div class="hr"></div>
+        <button id="clearAssignmentBtn" class="danger">清除选中孔的 Sample / Target</button>
+        <div class="hr"></div>
+        <div class="field"><label>单孔 Ct 编辑（仅选择 1 个孔时）</label><input id="singleCt" placeholder="Ct / Cq" /></div>
+        <div class="inline" style="margin-top:7px"><button id="applyCtBtn">更新 Ct</button><button id="excludeSelectedBtn">切换排除状态</button></div>
+      </div>
+
+      <div class="card plate-wrap">
+        <div class="inline" style="justify-content:space-between"><h2 style="margin:0">模拟 96 孔板</h2><div class="note">拖拽选区 → 左侧勾选 Sample / Target 完成赋值</div></div>
+        <div class="plate-switcher">
+          <div class="field"><label>当前孔板</label><select id="plateSelect"></select></div>
+          <button id="newPlateBtn">+ 新建空白孔板</button>
+          <button id="renamePlateBtn">重命名</button>
+          <button id="deletePlateBtn" class="danger">删除当前孔板</button>
+        </div>
+        <div class="note">按住鼠标左键拖拽形成矩形。可选整行、整列或任意矩形区域。手动赋值会覆盖导入值；当一个孔同时具有 Sample 和 Target 后，会按 Sample × Target 组合自动着色。</div>
+        <div class="spacer"></div>
+        <div id="plate" class="plate"></div>
+        <div id="plateLegend" class="plate-legend"></div>
+      </div>
+    </div>
+      <div class="step-actions"><button onclick="switchTab('import')">← 返回导入</button><div class="right-actions"><button class="nav-next" onclick="switchTab('qc')">下一步：技术复孔 QC →</button></div></div>
+  </section>
+
+<section id="panel-qc" class="panel">
+    <div class="step-intro"><div><b>先检查技术复孔，再进入归一化</b><div class="note">网页只提示异常，不自动删除任何孔；是否排除始终由你决定。</div></div><span class="step-tip">默认 Ct range 警告阈值：0.5</span></div>
+    <div class="card compact-card">
+      <h2>QC 设置</h2>
+      <div class="inline">
+        <div class="field"><label>技术复孔 Ct range 警告阈值</label><input id="rangeThreshold" type="number" step="0.01" value="0.5" /></div>
+        <label class="inline"><input id="cutoffToggle" type="checkbox" /> 启用 Ct cutoff</label>
+        <div class="field"><label>Cutoff</label><input id="cutoffValue" type="number" step="0.1" value="35" disabled /></div>
+      </div>
+      <div class="note">Ct cutoff 仅提示，不自动排除。Undetermined / No Ct / 空白视为未检出，不参与技术复孔平均。</div>
+    </div>
+    <div id="crossPlateQcWarning" class="callout warning flow-warning hidden"></div>
+    <div class="card">
+      <h2>技术复孔汇总</h2>
+      <div id="qcSummaryMsg" class="note"></div>
+      <div class="table-wrap"><table id="qcSummaryTable"></table></div>
+    </div>
+    <div class="card">
+      <h2>逐孔检查与人工排除</h2>
+      <div class="note">勾选“排除”后会立即重新计算后续结果。网页不会自行删除异常孔。</div>
+      <div class="table-wrap"><table id="rawWellTable"></table></div>
+    </div>
+      <div class="step-actions"><button onclick="switchTab('plate')">← 返回96孔板</button><div class="right-actions"><button class="nav-next" onclick="switchTab('setup')">下一步：分析设置 →</button></div></div>
+  </section>
+
+<section id="panel-setup" class="panel">
+    <div class="step-intro"><div><b>定义归一化方式和比较关系</b><div class="note">先指定 Target / Reference，再按需要设置 Group 和每个目的基因的 Calibrator。只做“某个样本=1”时，Group 可以留空。</div></div><span class="step-tip">Reference 是计算 ΔCt 的前提</span></div>
+    <div id="analysisDesignWarning" class="callout warning flow-warning hidden"></div>
+    <div class="grid2">
+      <div class="card">
+        <h2>Target 角色与扩增效率</h2>
+        <div class="inline"><label><input id="multiRefToggle" type="checkbox" /> 启用多个内参</label><span class="note">关闭时仅允许 1 个 Reference gene（内参基因）</span></div>
+        <div class="hr"></div>
+        <div id="roleList"></div>
+        <div class="hr"></div>
+        <label class="inline"><input id="effToggle" type="checkbox" /> 启用 amplification efficiency correction（扩增效率校正）</label>
+        <div class="note">效率以百分比填写：100% 对应扩增因子 E=2；95% 对应 E=1.95。开启后标准结果仍保留，并额外输出校正后的相对量与 fold change。</div>
+      </div>
+      <div class="card">
+        <h2>Sample 分组</h2>
+        <div class="inline">
+          <input id="batchGroupName" placeholder="批量分组名称，例如 Control" />
+          <button id="batchGroupBtn">赋给勾选样本</button>
+        </div>
+        <div class="hr"></div>
+        <div id="sampleGroupList"></div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>组别显示顺序</h2>
+        <div class="note">拖动组别改变图表和导出汇总的显示顺序。</div>
+        <div id="groupOrderList"></div>
+      </div>
+      <div class="card">
+        <h2>每个目的基因的校准组</h2>
+        <div class="note">可为不同目的基因分别设置 Control / Calibrator（对照 / 校准组）；选择“无”时不计算 ΔΔCt。</div>
+        <div id="calibratorList"></div>
+      </div>
+    </div>
+      <div class="step-actions"><button onclick="switchTab('qc')">← 返回 QC</button><div class="right-actions"><button class="nav-next" onclick="switchTab('results')">计算并查看结果 →</button></div></div>
+  </section>
+
+<section id="panel-results" class="panel">
+    <div class="step-intro"><div><b>先看结果数据，再按需要作图</b><div class="note">“结果数据”和“作图”互相独立；修改图形不会改变 Ct、ΔCt 或 ΔΔCt。</div></div><span class="step-tip">Excel 保留完整计算链路</span></div>
+    <div id="calculationAudit" class="audit-box"></div>
+    <div id="resultFlowWarning" class="callout warning flow-warning hidden"></div>
+    <div class="results-subtabs">
+      <button class="results-subtab active" data-result-subtab="data">结果数据</button>
+      <button class="results-subtab" data-result-subtab="graph">作图</button>
+    </div>
+
+    <div id="results-data" class="results-subpanel active">
+      <div class="kpis" id="resultKpis"></div>
+      <div class="card">
+        <div class="inline"><h2 style="margin:0">Sample-level results</h2><div class="right inline"><button id="exportExcelBtn" class="primary">导出 Excel</button></div></div>
+        <div id="resultMessage" class="callout" style="margin:10px 0"></div>
+        <div class="table-wrap"><table id="sampleResultTable"></table></div>
+      </div>
+      <div class="card">
+        <h2>可直接作图的数据</h2>
+        <div class="note">保留每个 biological replicate（生物学重复）的数值，可直接复制到 Prism / Origin / R。默认支持“同一基因、不同样本，以一个样本为 1”的相对定量；跨基因比较仍作为高级可选项。</div>
+        <div class="plot-controls">
+          <div class="field"><label>输出模式</label><select id="plotDataMode"><option value="samplebase">同一基因：指定样本 = 1</option><option value="within">按组校准（2^-ΔΔCt 等）</option></select></div>
+          <div class="field" id="sampleBaseField"><label>基准样本</label><select id="sampleBaseline"></select></div>
+          <div class="field hidden" id="plotMetricField"><label>作图指标</label><select id="plotDataMetric"><option value="fold">2^-ΔΔCt</option><option value="relAb">2^-ΔCt</option><option value="log2fc">log2FC</option><option value="deltaCt">ΔCt</option></select></div>
+          <div class="field hidden" id="crossBaseGeneField"><label>基准基因</label><select id="crossBaseGene"></select></div>
+          <button id="copyPlotDataBtn">复制 TSV</button>
+          <button id="exportPlotCsvBtn">导出 CSV</button>
+          <span id="copyPlotStatus" class="copy-ok"></span>
+        </div>
+        <div class="advanced-box"><label class="inline"><input id="crossGeneToggle" type="checkbox" /> 显示高级跨基因比较选项</label><span class="note">默认关闭。只有在明确需要比较不同基因间相对丰度时才开启。</span></div>
+        <div id="crossGeneWarning" class="callout warning plot-note hidden">跨基因 Ct 的直接比较只有在各引物扩增效率接近、阈值设置可比且实验体系一致时才适合作为相对丰度近似。</div>
+        <div class="table-wrap"><table id="plotDataTable"></table></div>
+      </div>
+      <div class="card">
+        <h2>Group summary</h2>
+        <div class="table-wrap"><table id="groupSummaryTable"></table></div>
+      </div>
+    </div>
+
+    <div id="results-graph" class="results-subpanel">
+      <div class="graph-layout">
+        <div class="card graph-controls">
+          <div class="graph-builder-title"><h2>GraphPad 风格作图设置</h2></div>
+          <div class="graph-note">数据仍来自上面的 qPCR 计算结果；这里仅控制“画什么”和“怎么画”，不会修改原始 Ct 或计算结果。</div>
+
+          <div class="graph-section">
+            <h3>1. 数据与坐标轴</h3>
+            <div class="graph-control-grid">
+              <div class="field"><label>横轴（X）</label><select id="graphX"><option value="sample">Sample</option><option value="group">Group</option><option value="target">Target</option></select></div>
+              <div class="field"><label>纵轴（Y）</label><select id="graphY"><option value="sampleRel">相对基准样本（基准=1）</option><option value="relAb">2^-ΔCt</option><option value="fold">2^-ΔΔCt</option><option value="log2fc">log2FC</option><option value="deltaCt">ΔCt</option><option value="targetCt">Target Mean Ct</option><option value="referenceCt">Reference Ct</option></select></div>
+              <div class="field"><label>系列 / 分组显示</label><select id="graphSeries"><option value="auto">自动</option><option value="none">不分系列</option><option value="target">Target</option><option value="group">Group</option><option value="sample">Sample</option></select></div>
+              <div class="field" id="graphBaselineField"><label>基准样本</label><select id="graphBaseline"></select></div>
+            </div>
+          </div>
+
+          <div class="graph-section">
+            <h3>2. 显示哪些数据</h3>
+            <label>Samples</label><div id="graphSampleFilter" class="multi-list"></div>
+            <div style="height:7px"></div>
+            <label>Groups</label><div id="graphGroupFilter" class="multi-list"></div>
+            <div style="height:7px"></div>
+            <label>Targets</label><div id="graphTargetFilter" class="multi-list"></div>
+          </div>
+
+          <div class="graph-section">
+            <h3>3. 图类型</h3>
+            <div class="field"><label>Prism 常用样式</label><select id="graphType"><option value="barPoints">柱状图 + individual points</option><option value="bar">仅均值柱状图</option><option value="columnScatter">Column scatter（散点 + mean）</option><option value="line">Line + symbols（折线 + 点）</option><option value="points">Only symbols（仅散点）</option></select></div>
+            <div class="appearance-row" style="margin-top:9px">
+              <div class="field"><label>误差线</label><select id="graphError"><option value="sd">SD</option><option value="sem">SEM</option><option value="none">不显示</option></select></div>
+              <div class="field"><label>Y 轴刻度</label><select id="graphYScale"><option value="linear">Linear</option><option value="logarithmic">Log10</option></select></div>
+            </div>
+            <div class="check-row"><label><input id="graphShowPoints" type="checkbox" checked />显示 individual points</label><label><input id="graphGrid" type="checkbox" />显示网格线</label></div>
+          </div>
+
+          <div class="graph-section">
+            <h3>4. 标题、轴标题与图例</h3>
+            <div class="graph-control-grid">
+              <div class="field wide"><label>图标题</label><input id="graphTitle" class="compact-input" type="text" placeholder="例如 Tug1 relative expression" /></div>
+              <div class="field"><label>X 轴标题</label><input id="graphXTitle" class="compact-input" type="text" /></div>
+              <div class="field"><label>Y 轴标题</label><input id="graphYTitle" class="compact-input" type="text" /></div>
+              <div class="field"><label>图例</label><select id="graphLegend"><option value="auto">自动</option><option value="show">显示</option><option value="hide">隐藏</option></select></div>
+              <div class="field"><label>图例位置</label><select id="graphLegendPos"><option value="top">上</option><option value="right">右</option><option value="bottom">下</option><option value="left">左</option></select></div>
+            </div>
+          </div>
+
+          <div class="graph-section">
+            <h3>5. 坐标轴范围</h3>
+            <div class="axis-row">
+              <div class="field"><label>Y min（留空=自动）</label><input id="graphYMin" type="number" step="any" /></div>
+              <div class="field"><label>Y max（留空=自动）</label><input id="graphYMax" type="number" step="any" /></div>
+            </div>
+            <div class="note" style="margin-top:7px">Log10 轴仅适用于全部 Y 值均大于 0 的指标；ΔCt / log2FC 等含负值时请使用 Linear。</div>
+          </div>
+
+          <div class="graph-section inline">
+            <button id="refreshChartBtn" class="primary">应用设置 / 刷新图</button>
+            <button id="resetGraphBtn">恢复默认图设置</button>
+          </div>
+        </div>
+
+        <div class="card graph-preview-card">
+          <div class="inline" style="margin-bottom:10px"><h2 style="margin:0">图形预览</h2><div class="right preview-toolbar"><button id="exportTiffBtn" class="primary">导出 TIFF</button><button id="exportPngBtn">导出 PNG</button></div></div>
+          <div id="metricWarning" class="callout warning metric-warning"></div>
+          <div class="chart-wrap" id="chartWrap"><div id="chartEmpty" class="chart-empty"></div><canvas id="resultChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+      <div class="step-actions"><button onclick="switchTab('setup')">← 返回分析设置</button><span class="note">建议最终导出 Excel 保存数值，并按需导出 TIFF 图。</span></div>
+  </section>
+</main>
+<script>
+const ROWS=['A','B','C','D','E','F','G','H'];
+const COLS=Array.from({length:12},(_,i)=>i+1);
+const WELL_IDS=ROWS.flatMap(r=>COLS.map(c=>r+c));
+const $=s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
+const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+const sd=a=>a.length>1?Math.sqrt(a.reduce((s,x)=>s+(x-mean(a))**2,0)/(a.length-1)):null;
+const sem=a=>a.length>1?sd(a)/Math.sqrt(a.length):null;
+const fmt=(v,d=4)=>v==null||!Number.isFinite(v)?'—':Number(v).toFixed(d).replace(/\.?0+$/,'');
+const geoMean=a=>a.length?Math.exp(mean(a.map(x=>Math.log(x)))):null;
+const clone=o=>JSON.parse(JSON.stringify(o));
+const GOLDEN_ANGLE=137.508;
+function comboKey(sample,target){return sample&&target?sample+'\u0001'+target:''}
+function ensureComboColors(){
+  state.comboColors=state.comboColors||{}; if(!Number.isFinite(state.nextComboColorIndex))state.nextComboColorIndex=0;
+  const catalogCombos=[];for(const s of (state.sampleCatalog||[]))for(const t of (state.targetCatalog||[]))catalogCombos.push(comboKey(s,t));
+  const combos=[...new Set([...catalogCombos,...allWells().map(w=>comboKey(w.sample,w.target)).filter(Boolean)])].sort();
+  combos.forEach(k=>{if(!state.comboColors[k]){const i=state.nextComboColorIndex++;const hue=Math.round((i*GOLDEN_ANGLE)%360);state.comboColors[k]=`hsl(${hue} 72% 88%)`}});
+}
+function wellComboColor(w){const k=comboKey(w.sample,w.target);return k?(state.comboColors?.[k]||'#f8fafc'):'#fbfcfe'}
+
+function makeEmptyWells(){return Object.fromEntries(WELL_IDS.map(id=>[id,{well:id,ct:null,sample:'',target:'',excluded:false,manualSample:false,manualTarget:false,manualCt:false,rawCt:''}]))}
+function makePlate(id,name,source=''){return {id,name,source,wells:makeEmptyWells()}}
+const defaultState=()=>({
+  plates:[makePlate('plate1','Plate 1')],activePlateId:'plate1',nextPlateNumber:2,
+  sampleCatalog:[],targetCatalog:[],catalogRowCount:6,activeCombo:'',
+  targetRoles:{}, efficiencies:{}, multiRef:false, effCorrection:false,
+  sampleGroups:{}, groupOrder:[], calibrators:{}, rangeThreshold:0.5, cutoffEnabled:false, cutoff:35,
+  comboColors:{}, nextComboColorIndex:0,
+  plotDataMode:'samplebase', plotDataMetric:'fold', sampleBaseline:'', crossGeneEnabled:false, crossGeneBaseline:'', chartMetric:'sampleRel', chartAxisMode:'auto',
+  graph:{x:'sample',y:'sampleRel',series:'auto',baseline:'',type:'barPoints',error:'sd',yScale:'linear',showPoints:true,grid:false,title:'',xTitle:'',yTitle:'Relative expression',legend:'auto',legendPos:'top',yMin:'',yMax:'',samples:[],groups:[],targets:[]}
+});
+let state=defaultState(); let selectedWells=new Set(); let importRows=[]; let importHeaders=[]; let chart=null; let pendingWorkbook=null;
+
+function migrateState(s){
+  const d=defaultState(), out={...d,...s};
+  if(s && s.wells && !s.plates){out.plates=[{id:'plate1',name:'Plate 1',source:'',wells:s.wells}];out.activePlateId='plate1';out.nextPlateNumber=2;delete out.wells}
+  if(!Array.isArray(out.plates)||!out.plates.length)out.plates=[makePlate('plate1','Plate 1')];
+  out.plates.forEach((p,i)=>{p.id=p.id||`plate${i+1}`;p.name=p.name||`Plate ${i+1}`;p.source=p.source||'';p.wells={...makeEmptyWells(),...(p.wells||{})}});
+  if(!out.plates.some(p=>p.id===out.activePlateId))out.activePlateId=out.plates[0].id;
+  out.sampleCatalog=Array.isArray(out.sampleCatalog)?out.sampleCatalog:[];out.targetCatalog=Array.isArray(out.targetCatalog)?out.targetCatalog:[];
+  out.catalogRowCount=Math.max(6,Number(out.catalogRowCount)||6);out.crossGeneEnabled=!!out.crossGeneEnabled;
+  if(!['samplebase','within','crossgene'].includes(out.plotDataMode))out.plotDataMode='samplebase';
+  return out;
+}
+function activePlate(){return state.plates.find(p=>p.id===state.activePlateId)||state.plates[0]}
+function activeWells(){return activePlate().wells}
+function allWells(){return state.plates.flatMap(p=>Object.values(p.wells).map(w=>({...w,plateId:p.id,plateName:p.name})))}
+function hasAnyWellData(){return allWells().some(w=>w.ct!=null||w.rawCt||w.sample||w.target)}
+
+function normalizeCt(v){
+  if(v==null) return {value:null,raw:''}; const raw=String(v).trim();
+  if(!raw || /^(undetermined|undet|no\s*ct|n\/a|na|nan)$/i.test(raw)) return {value:null,raw};
+  const n=Number(raw.replace(',','.')); return {value:Number.isFinite(n)?n:null,raw};
+}
+function orderedGroups(){
+  const used=[...new Set(Object.values(state.sampleGroups).filter(Boolean))];
+  const order=state.groupOrder.filter(g=>used.includes(g));
+  used.forEach(g=>{if(!order.includes(g)) order.push(g)}); state.groupOrder=order; return order;
+}
+function cleanEntity(v){const x=String(v??'').trim();return /^(none|null|n\/a|na|-)$/i.test(x)?'':x}
+function dedupeClean(a){return [...new Set((a||[]).map(cleanEntity).filter(Boolean))]}
+function uniqueTargets(){return dedupeClean([...(state.targetCatalog||[]),...allWells().map(w=>w.target)])}
+function uniqueSamples(){return dedupeClean([...(state.sampleCatalog||[]),...allWells().map(w=>w.sample)])}
+function syncEntities(){
+  const wellTargets=dedupeClean(allWells().map(w=>w.target)),wellSamples=dedupeClean(allWells().map(w=>w.sample));
+  state.sampleCatalog=dedupeClean([...(state.sampleCatalog||[]),...wellSamples]);state.targetCatalog=dedupeClean([...(state.targetCatalog||[]),...wellTargets]);
+  const targets=uniqueTargets(), samples=uniqueSamples();
+  targets.forEach(t=>{if(!state.targetRoles[t]) state.targetRoles[t]='target'; if(state.efficiencies[t]==null) state.efficiencies[t]=100});
+  Object.keys(state.targetRoles).forEach(t=>{if(!targets.includes(t)){delete state.targetRoles[t];delete state.efficiencies[t];delete state.calibrators[t]}});
+  samples.forEach(s=>{if(state.sampleGroups[s]==null) state.sampleGroups[s]=''});
+  Object.keys(state.sampleGroups).forEach(s=>{if(!samples.includes(s)) delete state.sampleGroups[s]});
+  orderedGroups();
+  if(!['samplebase','within','crossgene'].includes(state.plotDataMode))state.plotDataMode='samplebase';
+  if(!['fold','relAb','log2fc','deltaCt'].includes(state.plotDataMetric))state.plotDataMetric='fold';
+  if(!samples.includes(state.sampleBaseline))state.sampleBaseline=samples[0]||'';
+  if(!state.crossGeneEnabled&&state.plotDataMode==='crossgene')state.plotDataMode='samplebase';
+  ensureComboColors();
+}
+function saveState(){localStorage.setItem('qpcrAnalyzerAutosave',JSON.stringify(state))}
+function updateAll(){syncEntities();renderCatalog();renderPlateSelector();renderPlate();renderSetup();renderQC();renderResults();renderProjectStatus();renderAnalysisDesignWarning();saveState()}
+
+// Tabs
+$$('.tab').forEach(t=>t.addEventListener('click',()=>{ $$('.tab').forEach(x=>x.classList.remove('active')); $$('.panel').forEach(x=>x.classList.remove('active')); t.classList.add('active'); $('#panel-'+t.dataset.tab).classList.add('active'); if(t.dataset.tab==='results'){renderGraphBuilderControls();if($('#results-graph')?.classList.contains('active'))setTimeout(renderChart,30)}}));
+
+// Import parsing
+function parseDelimited(text){
+  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).filter(x=>x.trim().length); if(!lines.length) return [];
+  const first=lines[0]; const delim= first.includes('\t')?'\t': first.includes(',')?',': first.includes(';')?';':'\t';
+  const splitLine=line=>{ if(delim==='\t') return line.split('\t'); const out=[];let cur='',q=false; for(let i=0;i<line.length;i++){const ch=line[i];if(ch==='"'){if(q&&line[i+1]==='"'){cur+='"';i++}else q=!q}else if(ch===delim&&!q){out.push(cur);cur=''}else cur+=ch}out.push(cur);return out};
+  const headers=splitLine(lines[0]).map(x=>x.trim()); return lines.slice(1).map(line=>{const vals=splitLine(line);return Object.fromEntries(headers.map((h,i)=>[h,vals[i]??'']))});
+}
+function normalizedHeader(h){return String(h??'').trim().toLowerCase().replace(/[\s_\-\/\\().]+/g,'')}
+function autoMap(headers){
+  const low=headers.map(normalizedHeader);
+  const find=(patterns)=>{const i=low.findIndex(h=>patterns.some(p=>p.test(h)));return i>=0?headers[i]:''};
+  return {
+    well:find([/^well(position|id|name)?$/,/^position$/,/^孔位$/,/^replicategroupmembers?$/,/^replicatemembers?$/]),
+    ct:find([/^ct(mean|average|avg|value)?$/,/^cq(mean|average|avg|value)?$/,/^cp(mean|average|avg|value)?$/,/crossingpoint/]),
+    sample:find([/^sample(name|id)?$/,/^samplename$/,/^样本(名称|名)?$/]),
+    target:find([/^target(name|id)?$/,/^gene(name|id)?$/,/^genename$/,/^assay(name)?$/,/^基因(名称|名)?$/])
+  };
+}
+function headerScore(headers){
+  const m=autoMap(headers); let score=0;
+  if(m.ct) score+=8; if(m.well) score+=5; if(m.sample) score+=2; if(m.target) score+=2;
+  const ctNorm=normalizedHeader(m.ct||''); if(/^(cq|ct|cp)$/.test(ctNorm)) score+=2; // 优先逐孔原始值
+  return score;
+}
+function worksheetToRows(ws){
+  const grid=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,blankrows:false});
+  if(!grid.length) return {rows:[],headers:[],headerRow:0,score:0};
+  let bestRow=0,bestScore=-1;
+  for(let i=0;i<Math.min(grid.length,20);i++){
+    const headers=(grid[i]||[]).map(v=>String(v??'').trim());
+    const sc=headerScore(headers);
+    if(sc>bestScore){bestScore=sc;bestRow=i}
+  }
+  const rows=XLSX.utils.sheet_to_json(ws,{range:bestRow,defval:'',raw:false});
+  const headers=rows.length?Object.keys(rows[0]):(grid[bestRow]||[]).map(v=>String(v??'').trim()).filter(Boolean);
+  return {rows,headers,headerRow:bestRow,score:headerScore(headers)};
+}
+function loadWorkbookSheet(sheetName){
+  if(!pendingWorkbook||!sheetName)return;
+  const parsed=worksheetToRows(pendingWorkbook.Sheets[sheetName]);
+  prepareImport(parsed.rows);
+  $('#sheetHint').textContent=`当前：${sheetName} · 表头位于 Excel 第 ${parsed.headerRow+1} 行 · ${parsed.rows.length} 条记录`;
+}
+function extractWellInfo(v){
+  const text=String(v??'').toUpperCase();
+  const hits=[...text.matchAll(/\b([A-H])\s*(1[0-2]|[1-9])\b/g)].map(m=>m[1]+m[2]);
+  const uniq=[...new Set(hits)];
+  return {well:uniq.length===1?uniq[0]:'',multiple:uniq.length>1,wells:uniq};
+}
+function prepareImport(rows){
+  if(!rows.length){alert('没有读取到数据。');return} importRows=rows; importHeaders=Object.keys(rows[0]); const m=autoMap(importHeaders); $('#mappingCard').classList.remove('hidden');
+  const labels={well:'Well / 孔位',ct:'Ct / Cq / Cp',sample:'Sample / 样本',target:'Target / Gene'};
+  $('#mappingControls').innerHTML=Object.keys(labels).map(k=>`<div class="mapping-row"><label>${labels[k]}</label><select id="map-${k}"><option value="">— 不使用 —</option>${importHeaders.map(h=>`<option ${m[k]===h?'selected':''}>${esc(h)}</option>`).join('')}</select></div>`).join('');
+  renderPreview(rows.slice(0,8)); $('#importMsg').textContent=`读取到 ${rows.length} 行。`;
+}
+function renderPreview(rows){
+  $('#importPreview').innerHTML=`<thead><tr>${importHeaders.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${importHeaders.map(h=>`<td>${esc(r[h]??'')}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+$('#parsePasteBtn').onclick=()=>prepareImport(parseDelimited($('#pasteArea').value));
+async function parseFileBest(f){
+  const buf=await f.arrayBuffer();
+  if(/\.(xlsx?|xlsm)$/i.test(f.name)){
+    const wb=XLSX.read(buf,{type:'array'});const scored=wb.SheetNames.map((name,idx)=>({name,idx,...worksheetToRows(wb.Sheets[name])})).sort((a,b)=>b.score-a.score||a.idx-b.idx);return {file:f,wb,best:scored[0]};
+  }
+  const rows=parseDelimited(new TextDecoder().decode(buf));return {file:f,wb:null,best:{name:'CSV',rows,headers:rows.length?Object.keys(rows[0]):[],score:rows.length?headerScore(Object.keys(rows[0])):0,headerRow:0}};
+}
+function rowsToPlate(rows,map,name,source=''){
+  const p=makePlate('plate'+Date.now()+Math.random().toString(16).slice(2,7),name,source);let seq=0,imported=0,multiWellRows=0;
+  rows.forEach(r=>{let well='';if(map.well){const wi=extractWellInfo(r[map.well]);if(wi.multiple){multiWellRows++;return}well=wi.well}else{well=WELL_IDS[seq]||'';seq++}if(!well)return;const c=normalizeCt(r[map.ct]);p.wells[well]={...p.wells[well],ct:c.value,rawCt:c.raw,sample:map.sample?cleanEntity(r[map.sample]):'',target:map.target?cleanEntity(r[map.target]):'',excluded:false};imported++});
+  return {plate:p,imported,multiWellRows};
+}
+$('#dataFile').onchange=async e=>{
+  const files=[...e.target.files];if(!files.length)return;$('#fileName').textContent=files.map(f=>f.name).join('；');
+  try{
+    if(files.length>1){
+      const parsed=[];for(const f of files)parsed.push(await parseFileBest(f));
+      const newPlates=[];let notes=[];
+      for(const x of parsed){const m=autoMap(x.best.headers||[]);if(!m.ct){notes.push(`${x.file.name}: 未识别到 Cq/Ct，已跳过`);continue}const r=rowsToPlate(x.best.rows,m,x.file.name.replace(/\.[^.]+$/,''),x.file.name);newPlates.push(r.plate);notes.push(`${x.file.name}: ${r.imported} 孔${r.multiWellRows?`，跳过 ${r.multiWellRows} 条多孔汇总行`:''}`)}
+      if(!newPlates.length){alert('所选文件都未能自动识别 Ct/Cq 列。请先单独导入并确认列映射。');return}
+      if(hasAnyWellData()&&!confirm('多文件导入会建立一个新的多孔板项目，并替换当前孔板数据。继续吗？'))return;
+      const keep={...defaultState()};state={...keep,plates:newPlates,activePlateId:newPlates[0].id,nextPlateNumber:newPlates.length+1};selectedWells.clear();updateAll();$('#importMsg').textContent='多文件导入完成：'+notes.join('；');$('#mappingCard').classList.remove('hidden');$('#mappingControls').innerHTML='<div class="callout ok">多文件模式已按每个文件自动建立独立孔板，并使用自动识别的 Roche/通用列映射。可到“96孔板”逐板检查和修正 Sample × Target。</div>';$('#importPreview').innerHTML='';$('#sheetPicker').classList.add('hidden');switchTab('plate');return;
+    }
+    const f=files[0],buf=await f.arrayBuffer();
+    if(/\.(xlsx?|xlsm)$/i.test(f.name)){
+      pendingWorkbook=XLSX.read(buf,{type:'array'});const scored=pendingWorkbook.SheetNames.map((name,idx)=>{const p=worksheetToRows(pendingWorkbook.Sheets[name]);return {name,idx,...p}}).sort((a,b)=>b.score-a.score||a.idx-b.idx);const best=scored[0];$('#sheetPicker').classList.remove('hidden');$('#sheetSelect').innerHTML=pendingWorkbook.SheetNames.map(n=>`<option value="${attr(n)}" ${n===best.name?'selected':''}>${esc(n)}</option>`).join('');loadWorkbookSheet(best.name);
+    }else{pendingWorkbook=null;$('#sheetPicker').classList.add('hidden');prepareImport(parseDelimited(new TextDecoder().decode(buf)))}
+  }catch(err){alert('文件读取失败：'+err.message)}
+};
+$('#sheetSelect').onchange=e=>loadWorkbookSheet(e.target.value);
+$('#applyMappingBtn').onclick=()=>{
+  const map={well:$('#map-well')?.value||'',ct:$('#map-ct')?.value||'',sample:$('#map-sample')?.value||'',target:$('#map-target')?.value||''}; if(!map.ct){alert('至少需要指定 Ct/Cq/Cp 列。');return}
+  const p=activePlate();p.wells=makeEmptyWells();let seq=0,duplicates=[],multiWellRows=0,imported=0;
+  importRows.forEach(r=>{let well='';if(map.well){const wi=extractWellInfo(r[map.well]);if(wi.multiple){multiWellRows++;return}well=wi.well}else{well=WELL_IDS[seq]||'';seq++}if(!well)return;if(p.wells[well].rawCt||p.wells[well].ct!=null)duplicates.push(well);const c=normalizeCt(r[map.ct]);p.wells[well]={...p.wells[well],ct:c.value,rawCt:c.raw,sample:map.sample?cleanEntity(r[map.sample]):'',target:map.target?cleanEntity(r[map.target]):'',excluded:false};imported++});
+  selectedWells.clear(); updateAll();let msg=`已导入 ${imported} 个孔到 ${p.name}`;if(duplicates.length)msg+=`；重复孔位已以后出现的记录覆盖：${[...new Set(duplicates)].join(', ')}`;if(multiWellRows)msg+=`；另有 ${multiWellRows} 行同时包含多个孔位，未按单孔导入`;$('#importMsg').textContent=msg+'。'; switchTab('plate');
+};
+$('#demoBtn').onclick=()=>{const txt=`Well\tSample Name\tTarget Name\tCt\nA1\tC1\tTug1\t23.10\nA2\tC1\tTug1\t23.18\nA3\tC1\tTug1\t23.14\nA4\tC1\t36B4\t18.20\nA5\tC1\t36B4\t18.25\nA6\tC1\t36B4\t18.22\nB1\tC2\tTug1\t23.35\nB2\tC2\tTug1\t23.42\nB3\tC2\tTug1\t23.40\nB4\tC2\t36B4\t18.30\nB5\tC2\t36B4\t18.28\nB6\tC2\t36B4\t18.35\nC1\tT1\tTug1\t21.85\nC2\tT1\tTug1\t21.92\nC3\tT1\tTug1\t21.89\nC4\tT1\t36B4\t18.21\nC5\tT1\t36B4\t18.26\nC6\tT1\t36B4\t18.24\nD1\tT2\tTug1\t22.05\nD2\tT2\tTug1\t22.08\nD3\tT2\tTug1\t22.02\nD4\tT2\t36B4\t18.40\nD5\tT2\t36B4\t18.36\nD6\tT2\t36B4\t18.38`;$('#pasteArea').value=txt;prepareImport(parseDelimited(txt))};
+
+// 96-well plate + Sample×Target combination assignment
+function renderCatalog(){
+  const n=Math.max(state.catalogRowCount,state.sampleCatalog.length,state.targetCatalog.length,6);state.catalogRowCount=n;
+  const rows=Array.from({length:n},(_,i)=>`<tr><td class="num">${i+1}</td><td><div class="catalog-entry"><input type="text" class="catalogSample" data-i="${i}" value="${attr(state.sampleCatalog[i]||'')}" placeholder="Sample ${i+1}" /><label class="catalog-assign"><input type="checkbox" class="assignSampleCb" data-i="${i}" />赋值</label></div></td><td><div class="catalog-entry"><input type="text" class="catalogTarget" data-i="${i}" value="${attr(state.targetCatalog[i]||'')}" placeholder="Target ${i+1}" /><label class="catalog-assign"><input type="checkbox" class="assignTargetCb" data-i="${i}" />赋值</label></div></td></tr>`).join('');
+  $('#catalogTable').innerHTML=`<thead><tr><th>#</th><th>Sample</th><th>Target</th></tr></thead><tbody>${rows}</tbody>`;
+  $$('.catalogSample').forEach(el=>el.onchange=commitCatalogInputs);$$('.catalogTarget').forEach(el=>el.onchange=commitCatalogInputs);
+  $$('.assignSampleCb').forEach(cb=>cb.onchange=()=>{if(!cb.checked)return;const i=+cb.dataset.i,name=($('.catalogSample[data-i="'+i+'"]')?.value||'').trim();if(!name){cb.checked=false;alert('请先填写这个 Sample 名称。');return}applyCatalogAssignment('sample',name)});
+  $$('.assignTargetCb').forEach(cb=>cb.onchange=()=>{if(!cb.checked)return;const i=+cb.dataset.i,name=($('.catalogTarget[data-i="'+i+'"]')?.value||'').trim();if(!name){cb.checked=false;alert('请先填写这个 Target 名称。');return}applyCatalogAssignment('target',name)});
+}
+function commitCatalogInputs(){state.sampleCatalog=dedupeClean($$('.catalogSample').map(x=>x.value));state.targetCatalog=dedupeClean($$('.catalogTarget').map(x=>x.value));state.catalogRowCount=Math.max(state.catalogRowCount,$$('.catalogSample').length);updateAll()}
+function applyCatalogAssignment(type,name){
+  if(!selectedWells.size){renderCatalog();alert('请先在 96 孔板上拖拽框选要定义的孔位。');return}
+  // 先把当前输入框内容同步进名称列表，再对当前选区赋值。
+  state.sampleCatalog=dedupeClean([...state.sampleCatalog,...$$('.catalogSample').map(x=>x.value)]);
+  state.targetCatalog=dedupeClean([...state.targetCatalog,...$$('.catalogTarget').map(x=>x.value)]);
+  const wells=activeWells();
+  selectedWells.forEach(id=>{if(type==='sample'){wells[id].sample=name;wells[id].manualSample=true}else{wells[id].target=name;wells[id].manualTarget=true}});
+  updateAll();
+}
+$('#addCatalogRowBtn').onclick=()=>{commitCatalogInputs();state.catalogRowCount+=4;renderCatalog();saveState()};
+$('#syncCatalogBtn').onclick=()=>{state.sampleCatalog=dedupeClean([...state.sampleCatalog,...allWells().map(w=>w.sample)]);state.targetCatalog=dedupeClean([...state.targetCatalog,...allWells().map(w=>w.target)]);updateAll()};
+function renderPlateSelector(){
+  const sel=$('#plateSelect');if(!sel)return;sel.innerHTML=state.plates.map(p=>`<option value="${attr(p.id)}" ${p.id===state.activePlateId?'selected':''}>${esc(p.name)}${p.source?` · ${esc(p.source)}`:''}</option>`).join('');
+}
+$('#plateSelect').onchange=e=>{state.activePlateId=e.target.value;selectedWells.clear();updateAll()};
+$('#newPlateBtn').onclick=()=>{const n=state.nextPlateNumber||state.plates.length+1,p=makePlate('plate'+Date.now(),`Plate ${n}`);state.nextPlateNumber=n+1;state.plates.push(p);state.activePlateId=p.id;selectedWells.clear();updateAll()};
+$('#renamePlateBtn').onclick=()=>{const p=activePlate(),v=prompt('孔板名称：',p.name);if(v&&v.trim()){p.name=v.trim();updateAll()}};
+$('#deletePlateBtn').onclick=()=>{if(state.plates.length===1){alert('至少保留一个孔板。');return}const p=activePlate();if(!confirm(`删除 ${p.name}？`))return;state.plates=state.plates.filter(x=>x.id!==p.id);state.activePlateId=state.plates[0].id;selectedWells.clear();updateAll()};
+function renderPlate(){
+  ensureComboColors();const wells=activeWells(),p=$('#plate');p.innerHTML='<div></div>'+COLS.map(c=>`<div class="head">${c}</div>`).join('');
+  ROWS.forEach((r,ri)=>{p.insertAdjacentHTML('beforeend',`<div class="rowhead">${r}</div>`);COLS.forEach((c,ci)=>{const id=r+c,w=wells[id],ct=w.ct==null?(w.rawCt?esc(w.rawCt):'—'):fmt(w.ct,2),bg=wellComboColor(w);p.insertAdjacentHTML('beforeend',`<div class="well ${selectedWells.has(id)?'selected':''} ${w.excluded?'excluded':''} ${(w.manualSample||w.manualTarget||w.manualCt)?'manual':''}" style="background:${attr(bg)}" data-well="${id}" data-r="${ri}" data-c="${ci}"><div class="well-id">${id}</div><div class="well-ct">${ct}</div><div class="well-meta">${esc(w.sample||'—')}</div><div class="well-meta">${esc(w.target||'—')}</div></div>`)});});
+  const combos=[...new Set(Object.values(wells).map(w=>comboKey(w.sample,w.target)).filter(Boolean))].sort();$('#plateLegend').innerHTML=combos.length?combos.map(k=>{const [sample,target]=k.split('\u0001'),n=Object.values(wells).filter(w=>comboKey(w.sample,w.target)===k).length;return `<span class="legend-item"><span class="legend-swatch" style="background:${attr(state.comboColors[k])}"></span><b>${esc(sample)}</b> × ${esc(target)} <span class="muted">(${n})</span></span>`}).join(''):'<span class="note">尚未给当前孔板分配 Sample × Target。</span>';
+  bindPlateDrag();updateSelectionInfo();
+}
+let dragStart=null,dragging=false;
+function bindPlateDrag(){
+  $$('.well').forEach(el=>{el.onpointerdown=e=>{e.preventDefault();dragging=true;dragStart=[+el.dataset.r,+el.dataset.c];selectRect(...dragStart,...dragStart)};el.onpointerenter=()=>{if(dragging)selectRect(dragStart[0],dragStart[1],+el.dataset.r,+el.dataset.c)}});
+  document.onpointerup=()=>{if(!dragging)return;dragging=false;dragStart=null;updateSelectionInfo()};
+}
+function selectRect(r1,c1,r2,c2){selectedWells.clear();for(let r=Math.min(r1,r2);r<=Math.max(r1,r2);r++)for(let c=Math.min(c1,c2);c<=Math.max(c1,c2);c++)selectedWells.add(ROWS[r]+COLS[c]);$$('.well').forEach(el=>el.classList.toggle('selected',selectedWells.has(el.dataset.well)));updateSelectionInfo()}
+function updateSelectionInfo(){const wells=activeWells();$('#selectionCount').textContent=selectedWells.size;const ids=[...selectedWells];if(ids.length===1){const w=wells[ids[0]];$('#singleCt').value=w.ct??w.rawCt??'';$('#selectedWellInfo').textContent=`${activePlate().name} · ${w.well} | Ct=${w.ct??w.rawCt??'ND'} | Sample=${w.sample||'—'} | Target=${w.target||'—'}${w.excluded?' | EXCLUDED':''}`}else{$('#singleCt').value='';$('#selectedWellInfo').textContent=ids.length?`${activePlate().name} · ${ids[0]} … ${ids[ids.length-1]}`:'—'}}
+$('#clearAssignmentBtn').onclick=()=>{const wells=activeWells();selectedWells.forEach(id=>{wells[id].sample='';wells[id].target='';wells[id].manualSample=true;wells[id].manualTarget=true});updateAll()};
+$('#applyCtBtn').onclick=()=>{const ids=[...selectedWells];if(ids.length!==1){alert('请只选择 1 个孔。');return}const c=normalizeCt($('#singleCt').value),w=activeWells()[ids[0]];w.ct=c.value;w.rawCt=c.raw;w.manualCt=true;updateAll()};
+$('#excludeSelectedBtn').onclick=()=>{if(!selectedWells.size)return;const wells=activeWells(),allExcluded=[...selectedWells].every(id=>wells[id].excluded);selectedWells.forEach(id=>wells[id].excluded=!allExcluded);updateAll()};
+
+// Setup
+function renderSetup(){
+  $('#multiRefToggle').checked=state.multiRef;$('#effToggle').checked=state.effCorrection;$('#rangeThreshold').value=state.rangeThreshold;$('#cutoffToggle').checked=state.cutoffEnabled;$('#cutoffValue').disabled=!state.cutoffEnabled;$('#cutoffValue').value=state.cutoff;
+  const targets=uniqueTargets(); $('#roleList').innerHTML=targets.length?targets.map(t=>`<div class="role-row"><b>${esc(t)}</b><select class="roleSelect" data-target="${attr(t)}"><option value="target" ${state.targetRoles[t]==='target'?'selected':''}>Target gene</option><option value="reference" ${state.targetRoles[t]==='reference'?'selected':''}>Reference gene</option></select><div class="field"><label>Efficiency %</label><input class="effInput" data-target="${attr(t)}" type="number" step="0.1" min="1" max="150" value="${state.efficiencies[t]??100}" ${state.effCorrection?'':'disabled'} /></div></div>`).join(''):'<div class="note">尚未检测到 Target。</div>';
+  $$('.roleSelect').forEach(el=>el.onchange=()=>{const t=el.dataset.target;if(el.value==='reference'&&!state.multiRef)Object.keys(state.targetRoles).forEach(k=>state.targetRoles[k]='target');state.targetRoles[t]=el.value;updateAll()});
+  $$('.effInput').forEach(el=>el.onchange=()=>{state.efficiencies[el.dataset.target]=Math.max(1,Math.min(150,Number(el.value)||100));updateAll()});
+  const samples=uniqueSamples(); $('#sampleGroupList').innerHTML=samples.length?samples.map(s=>`<div class="sample-row"><input type="checkbox" class="samplePick" data-sample="${attr(s)}" /><b>${esc(s)}</b><input class="groupInput" data-sample="${attr(s)}" value="${attr(state.sampleGroups[s]||'')}" placeholder="Group" /></div>`).join(''):'<div class="note">尚未检测到 Sample。</div>';
+  $$('.groupInput').forEach(el=>el.onchange=()=>{state.sampleGroups[el.dataset.sample]=el.value.trim();orderedGroups();updateAll()});
+  renderGroupOrder(); renderCalibrators();
+}
+$('#multiRefToggle').onchange=e=>{state.multiRef=e.target.checked;if(!state.multiRef){const refs=Object.keys(state.targetRoles).filter(t=>state.targetRoles[t]==='reference');refs.slice(1).forEach(t=>state.targetRoles[t]='target')}updateAll()};
+$('#effToggle').onchange=e=>{state.effCorrection=e.target.checked;updateAll()};
+$('#batchGroupBtn').onclick=()=>{const g=$('#batchGroupName').value.trim();if(!g)return;$$('.samplePick:checked').forEach(cb=>state.sampleGroups[cb.dataset.sample]=g);orderedGroups();updateAll()};
+$('#rangeThreshold').onchange=e=>{state.rangeThreshold=Math.max(0,Number(e.target.value)||0.5);updateAll()};
+$('#cutoffToggle').onchange=e=>{state.cutoffEnabled=e.target.checked;updateAll()};
+$('#cutoffValue').onchange=e=>{state.cutoff=Number(e.target.value)||35;updateAll()};
+function renderGroupOrder(){
+  const groups=orderedGroups(); $('#groupOrderList').innerHTML=groups.length?groups.map(g=>`<div class="group-pill" draggable="true" data-group="${attr(g)}"><span>${esc(g)}</span><span class="handle">⋮⋮</span></div>`).join(''):'<div class="note">给 Sample 分组后，这里会出现组别。</div>';
+  let from=null;$$('.group-pill').forEach(el=>{el.ondragstart=()=>{from=el.dataset.group;el.classList.add('dragging')};el.ondragend=()=>el.classList.remove('dragging');el.ondragover=e=>e.preventDefault();el.ondrop=e=>{e.preventDefault();const to=el.dataset.group;if(!from||from===to)return;const a=state.groupOrder.filter(x=>x!==from);a.splice(a.indexOf(to),0,from);state.groupOrder=a;updateAll()}});
+}
+function renderCalibrators(){
+  const tg=uniqueTargets().filter(t=>state.targetRoles[t]==='target'), groups=orderedGroups();
+  $('#calibratorList').innerHTML=tg.length?tg.map(t=>`<div class="role-row"><b>${esc(t)}</b><select class="calSel" data-target="${attr(t)}"><option value="">— 无 —</option>${groups.map(g=>`<option ${state.calibrators[t]===g?'selected':''}>${esc(g)}</option>`).join('')}</select><span></span></div>`).join(''):'<div class="note">至少需要一个 Target gene。</div>';
+  $$('.calSel').forEach(el=>el.onchange=()=>{state.calibrators[el.dataset.target]=el.value;updateAll()});
+}
+
+// Project flow / design checks
+function renderProjectStatus(){
+  const el=$('#projectStatus');if(!el)return;const wells=allWells().filter(w=>w.ct!=null||w.rawCt),assigned=wells.filter(w=>w.sample&&w.target);el.textContent=wells.length?`${state.plates.length} Plate · ${wells.length} 个Ct孔 · ${uniqueSamples().length} Sample · ${uniqueTargets().length} Target · ${assigned.length}/${wells.length} 已完成赋值`:'空白项目';
+  const plateReady=wells.length>0&&assigned.length===wells.length;const refs=uniqueTargets().filter(t=>state.targetRoles[t]==='reference');const targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');
+  const ready={import:wells.length>0,plate:plateReady,qc:wells.length>0,setup:refs.length>0&&targets.length>0,results:refs.length>0&&targets.length>0};$$('.tab').forEach(t=>t.classList.toggle('ready',!!ready[t.dataset.tab]));
+}
+function plateSetFor(sample,target){return [...new Set(validCtRows(sample,target).map(w=>w.plateName))]}
+function normalizationCrossPlateIssues(){
+  const refs=uniqueTargets().filter(t=>state.targetRoles[t]==='reference'),targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');if(!refs.length)return[];const out=[];for(const sample of uniqueSamples())for(const target of targets){const used=new Set(plateSetFor(sample,target));for(const r of refs)plateSetFor(sample,r).forEach(p=>used.add(p));if(used.size>1&&validCtRows(sample,target).length&&refs.every(r=>validCtRows(sample,r).length))out.push({sample,target,plates:[...used]})}return out;
+}
+function renderAnalysisDesignWarning(){
+  const box=$('#analysisDesignWarning');if(!box)return;const issues=normalizationCrossPlateIssues();if(issues.length){box.classList.remove('hidden');box.textContent=`提醒：有 ${issues.length} 个 Sample × Target 的 ΔCt 归一化会使用来自多个 Plate 的 Ct。当前网页不会做板间校正；若不同 Plate 属于独立 qPCR run，建议同一样本的 Target 与 Reference 尽量同板，或使用独立的 inter-run calibrator。`}else{box.classList.add('hidden');box.textContent=''}
+}
+// QC & calculations
+function validCtRows(sample,target){return allWells().filter(w=>w.sample===sample&&w.target===target&&!w.excluded&&w.ct!=null&&Number.isFinite(w.ct))}
+function groupTechnical(){
+  const map={};allWells().forEach(w=>{if(!w.sample||!w.target)return;const k=w.sample+'\u0001'+w.target;if(!map[k])map[k]={sample:w.sample,target:w.target,wells:[]};map[k].wells.push(w)});
+  return Object.values(map).map(g=>{const valid=g.wells.filter(w=>!w.excluded&&w.ct!=null&&Number.isFinite(w.ct)),vals=valid.map(w=>w.ct),plates=[...new Set(valid.map(w=>w.plateName))],rg=vals.length?Math.max(...vals)-Math.min(...vals):null;let flags=[];if(vals.length===0)flags.push('ND');else if(vals.length===1)flags.push('单孔');else if(vals.length===2)flags.push('2个复孔');if(rg!=null&&rg>state.rangeThreshold)flags.push('range警告');if(plates.length>1)flags.push('跨板');const status=flags.length?flags.join(' + '):'OK';return {...g,n:vals.length,meanCt:mean(vals),sdCt:sd(vals),range:rg,status,plates}})
+}
+function renderQC(){
+  const gs=groupTechnical(),cross=gs.filter(g=>g.plates?.length>1);$('#qcSummaryMsg').textContent=`共识别 ${gs.length} 个 Sample × Target 组合。Ct range > ${state.rangeThreshold} 时提示，但不会自动删除。`;
+  const cp=$('#crossPlateQcWarning');if(cp){if(cross.length){cp.classList.remove('hidden');cp.textContent=`有 ${cross.length} 个 Sample × Target 组合的有效 Ct 来自多个 Plate。网页仍会合并计算，但已标记“跨板”；若这些板属于不同 qPCR run，请留意板间效应。`}else{cp.classList.add('hidden');cp.textContent=''}}
+  $('#qcSummaryTable').innerHTML=`<thead><tr><th>Sample</th><th>Target</th><th>Plate</th><th class="num">有效孔 n</th><th class="num">Mean Ct</th><th class="num">SD</th><th class="num">Ct range</th><th>状态</th></tr></thead><tbody>${gs.map(g=>`<tr><td>${esc(g.sample)}</td><td>${esc(g.target)}</td><td>${esc((g.plates||[]).join(', ')||'—')}</td><td class="num">${g.n}</td><td class="num">${fmt(g.meanCt,3)}</td><td class="num">${fmt(g.sdCt,3)}</td><td class="num">${fmt(g.range,3)}</td><td>${statusBadge(g)}</td></tr>`).join('')}</tbody>`;
+  const wells=allWells().filter(w=>w.ct!=null||w.rawCt||w.sample||w.target);$('#rawWellTable').innerHTML=`<thead><tr><th>Plate</th><th>Well</th><th>Sample</th><th>Target</th><th class="num">Ct</th><th>提示</th><th class="center">排除</th></tr></thead><tbody>${wells.map(w=>{const cutoffWarn=state.cutoffEnabled&&w.ct!=null&&w.ct>state.cutoff;return `<tr><td>${esc(w.plateName)}</td><td>${w.well}</td><td>${esc(w.sample||'—')}</td><td>${esc(w.target||'—')}</td><td class="num">${w.ct==null?esc(w.rawCt||'ND'):fmt(w.ct,3)}</td><td>${cutoffWarn?'<span class="badge warn">Ct cutoff</span>':(w.ct==null?'<span class="badge gray">ND</span>':'')}</td><td class="center"><input class="excludeCb" data-plate="${attr(w.plateId)}" data-well="${w.well}" type="checkbox" ${w.excluded?'checked':''}></td></tr>`}).join('')}</tbody>`;
+  $$('.excludeCb').forEach(cb=>cb.onchange=()=>{const p=state.plates.find(x=>x.id===cb.dataset.plate);if(p)p.wells[cb.dataset.well].excluded=cb.checked;updateAll()});
+}
+function statusBadge(g){if(g.status==='OK')return '<span class="badge good">OK</span>';if(g.status==='ND')return '<span class="badge bad">ND</span>';if(g.status.includes('警告')||g.status.includes('跨板'))return `<span class="badge warn">${esc(g.status)}</span>`;return `<span class="badge gray">${esc(g.status)}</span>`}
+function sampleCalculations(){
+  const targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');const refs=uniqueTargets().filter(t=>state.targetRoles[t]==='reference');const samples=uniqueSamples();const rows=[];
+  samples.forEach(sample=>{const group=state.sampleGroups[sample]||'';targets.forEach(target=>{const tVals=validCtRows(sample,target).map(w=>w.ct);const tCt=mean(tVals);const refCts=refs.map(r=>({gene:r,ct:mean(validCtRows(sample,r).map(w=>w.ct))}));const refsComplete=refs.length>0&&refCts.every(x=>x.ct!=null);const refMean=refsComplete?mean(refCts.map(x=>x.ct)):null;const deltaCt=(tCt!=null&&refMean!=null)?tCt-refMean:null;const relAb=deltaCt!=null?Math.pow(2,-deltaCt):null;
+    let effAb=null;if(state.effCorrection&&tCt!=null&&refsComplete){const Et=1+(Number(state.efficiencies[target]??100)/100);const tq=Math.pow(Et,-tCt);const rqs=refCts.map(x=>Math.pow(1+(Number(state.efficiencies[x.gene]??100)/100),-x.ct));effAb=tq/geoMean(rqs)}
+    rows.push({sample,group,target,targetCt:tCt,targetN:tVals.length,referenceCt:refMean,deltaCt,relAb,effAb,refsComplete,refGenes:refs.join('; ')})})});
+  targets.forEach(target=>{const cal=state.calibrators[target]||'';const calRows=rows.filter(r=>r.target===target&&r.group===cal&&r.deltaCt!=null);const base=mean(calRows.map(r=>r.deltaCt));const effBase=state.effCorrection&&calRows.length?geoMean(calRows.map(r=>r.effAb).filter(x=>x!=null&&x>0)):null;rows.filter(r=>r.target===target).forEach(r=>{r.calibrator=cal;r.deltaDeltaCt=(cal&&base!=null&&r.deltaCt!=null)?r.deltaCt-base:null;r.fold=r.deltaDeltaCt!=null?Math.pow(2,-r.deltaDeltaCt):null;r.log2fc=r.deltaDeltaCt!=null?-r.deltaDeltaCt:null;r.effFold=(cal&&effBase&&r.effAb!=null)?r.effAb/effBase:null})});return rows;
+}
+function summarize(rows){
+  const metrics=['deltaCt','relAb','deltaDeltaCt','fold','log2fc','effAb','effFold'];const map={};rows.forEach(r=>{if(!r.group)return;const k=r.target+'\u0001'+r.group;if(!map[k])map[k]={target:r.target,group:r.group,rows:[]};map[k].rows.push(r)});return Object.values(map).map(g=>{const o={target:g.target,group:g.group};metrics.forEach(m=>{const a=g.rows.map(r=>r[m]).filter(x=>x!=null&&Number.isFinite(x));o[m+'N']=a.length;o[m+'Mean']=mean(a);o[m+'SD']=sd(a);o[m+'SEM']=sem(a)});return o}).sort((a,b)=>a.target.localeCompare(b.target)||orderedGroups().indexOf(a.group)-orderedGroups().indexOf(b.group))}
+function sampleBaselineCalculations(){
+  const rows=sampleCalculations(),targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target'),samples=uniqueSamples();
+  const base=state.sampleBaseline&&samples.includes(state.sampleBaseline)?state.sampleBaseline:(samples[0]||'');if(base!==state.sampleBaseline)state.sampleBaseline=base;
+  const out=[];for(const target of targets){const b=rows.find(r=>r.sample===base&&r.target===target);for(const sample of samples){const r=rows.find(x=>x.sample===sample&&x.target===target);const dd=(r?.deltaCt!=null&&b?.deltaCt!=null)?r.deltaCt-b.deltaCt:null;const rel=dd!=null?Math.pow(2,-dd):null;const eff=(state.effCorrection&&r?.effAb!=null&&b?.effAb)?r.effAb/b.effAb:null;out.push({sample,group:state.sampleGroups[sample]||'',target,baselineSample:base,deltaDeltaCtVsSample:dd,relativeToSample:rel,effRelativeToSample:eff})}}return out;
+}
+function crossGeneCalculations(){
+  if(!state.crossGeneEnabled)return[];const targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');const base=state.crossGeneBaseline&&targets.includes(state.crossGeneBaseline)?state.crossGeneBaseline:(targets[0]||'');if(base!==state.crossGeneBaseline)state.crossGeneBaseline=base;const rows=[];uniqueSamples().forEach(sample=>{const group=state.sampleGroups[sample]||'',baseCt=mean(validCtRows(sample,base).map(w=>w.ct));targets.forEach(target=>{const geneCt=mean(validCtRows(sample,target).map(w=>w.ct)),crossDelta=(geneCt!=null&&baseCt!=null)?geneCt-baseCt:null,crossRel=crossDelta!=null?Math.pow(2,-crossDelta):null;let crossEff=null;if(state.effCorrection&&geneCt!=null&&baseCt!=null){const Eg=1+(Number(state.efficiencies[target]??100)/100),Eb=1+(Number(state.efficiencies[base]??100)/100);crossEff=Math.pow(Eg,-geneCt)/Math.pow(Eb,-baseCt)}rows.push({sample,group,target,baseline:base,geneCt,baseCt,crossDelta,crossRel,crossEff})})});return rows;
+}
+function graphReadyRows(){
+  const targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target'),samples=uniqueSamples();
+  if(state.plotDataMode==='samplebase'){
+    const sr=sampleBaselineCalculations();return samples.map(sample=>{const o={Group:state.sampleGroups[sample]||'',Sample:sample};targets.forEach(t=>{const r=sr.find(x=>x.sample===sample&&x.target===t);o[t]=r?.relativeToSample??null;if(state.effCorrection)o[t+' (eff-corrected)']=r?.effRelativeToSample??null});return o});
+  }
+  if(state.plotDataMode==='crossgene'&&state.crossGeneEnabled){const cr=crossGeneCalculations();return samples.map(sample=>{const o={Group:state.sampleGroups[sample]||'',Sample:sample};targets.forEach(t=>{const r=cr.find(x=>x.sample===sample&&x.target===t);o[t]=r?.crossRel??null;if(state.effCorrection)o[t+' (eff-corrected)']=r?.crossEff??null});return o})}
+  const rows=sampleCalculations(),metric=state.plotDataMetric;return samples.map(sample=>{const o={Group:state.sampleGroups[sample]||'',Sample:sample};targets.forEach(t=>{const r=rows.find(x=>x.sample===sample&&x.target===t);o[t]=r?.[metric]??null});return o});
+}
+function renderPlotData(){
+  const targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target'),samples=uniqueSamples();const modeEl=$('#plotDataMode'),metricEl=$('#plotDataMetric'),baseEl=$('#crossBaseGene'),sampleBaseEl=$('#sampleBaseline');if(!modeEl||!metricEl||!baseEl||!sampleBaseEl)return;
+  const hasCross=[...modeEl.options].some(o=>o.value==='crossgene');if(state.crossGeneEnabled&&!hasCross)modeEl.insertAdjacentHTML('beforeend','<option value="crossgene">高级：多基因间相对定量</option>');if(!state.crossGeneEnabled&&hasCross){[...modeEl.options].find(o=>o.value==='crossgene')?.remove();if(state.plotDataMode==='crossgene')state.plotDataMode='samplebase'}
+  modeEl.value=state.plotDataMode;metricEl.value=state.plotDataMetric;$('#crossGeneToggle').checked=state.crossGeneEnabled;
+  sampleBaseEl.innerHTML=samples.map(s=>`<option value="${attr(s)}" ${s===state.sampleBaseline?'selected':''}>${esc(s)}</option>`).join('');if(!samples.includes(state.sampleBaseline))state.sampleBaseline=samples[0]||'';sampleBaseEl.value=state.sampleBaseline;
+  baseEl.innerHTML=targets.map(t=>`<option value="${attr(t)}" ${t===state.crossGeneBaseline?'selected':''}>${esc(t)}</option>`).join('');if(!targets.includes(state.crossGeneBaseline))state.crossGeneBaseline=targets[0]||'';baseEl.value=state.crossGeneBaseline;
+  const sampleMode=state.plotDataMode==='samplebase',cross=state.plotDataMode==='crossgene';$('#sampleBaseField').classList.toggle('hidden',!sampleMode);$('#plotMetricField').classList.toggle('hidden',sampleMode||cross);$('#crossBaseGeneField').classList.toggle('hidden',!cross);$('#crossGeneWarning').classList.toggle('hidden',!cross);
+  const rows=graphReadyRows();if(!rows.length){$('#plotDataTable').innerHTML='<tbody><tr><td class="note">暂无可输出数据。</td></tr></tbody>';return}const headers=Object.keys(rows[0]);$('#plotDataTable').innerHTML=`<thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${headers.map(h=>`<td class="${h==='Group'||h==='Sample'?'':'num'}">${h==='Group'||h==='Sample'?esc(r[h]||'—'):fmt(r[h],6)}</td>`).join('')}</tr>`).join('')}</tbody>`;
+}
+function graphReadyTSV(){const rows=graphReadyRows();if(!rows.length)return'';const headers=Object.keys(rows[0]),clean=v=>v==null||(!Number.isFinite(v)&&typeof v==='number')?'':String(v);return[headers.join('\t'),...rows.map(r=>headers.map(h=>clean(r[h])).join('\t'))].join('\n')}
+
+function renderResults(){
+  const rows=sampleCalculations(), sums=summarize(rows), refs=uniqueTargets().filter(t=>state.targetRoles[t]==='reference');const targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');const qcWarn=groupTechnical().filter(g=>g.status!=='OK').length;
+  const audit=$('#calculationAudit');if(audit)audit.innerHTML=`<div class="audit-item"><b>技术复孔</b><span>先求 Mean Ct；ND / 排除孔不参与</span></div><div class="audit-item"><b>ΔCt</b><span>Target Ct − Reference Ct</span></div><div class="audit-item"><b>ΔΔCt</b><span>相对校准组平均 ΔCt</span></div><div class="audit-item"><b>样本基准</b><span>同一基因内指定样本 = 1</span></div>`;
+  const rf=$('#resultFlowWarning'),issues=normalizationCrossPlateIssues();if(rf){if(issues.length){rf.classList.remove('hidden');rf.textContent=`注意：${issues.length} 个 Sample × Target 的归一化涉及多个 Plate；结果已计算，但未进行板间校正。`}else{rf.classList.add('hidden');rf.textContent=''}}
+  $('#resultKpis').innerHTML=`<div class="kpi"><span>Samples</span><b>${uniqueSamples().length}</b></div><div class="kpi"><span>Target genes</span><b>${targets.length}</b></div><div class="kpi"><span>Reference genes</span><b>${refs.length}</b></div><div class="kpi"><span>QC flags</span><b>${qcWarn}</b></div>`;
+  let msg='';if(!refs.length)msg='尚未指定 Reference gene（内参基因），因此不能计算 ΔCt。';else if(!targets.length)msg='尚未指定 Target gene（目的基因）。';else msg=`使用内参：${refs.join(', ')}。标准结果始终保留${state.effCorrection?'；当前同时计算扩增效率校正结果':''}。`;
+  $('#resultMessage').textContent=msg;
+  $('#sampleResultTable').innerHTML=`<thead><tr><th>Sample</th><th>Group</th><th>Target</th><th class="num">Target Mean Ct</th><th class="num">Reference Ct</th><th class="num">ΔCt</th><th class="num">2^-ΔCt</th><th>Calibrator</th><th class="num">ΔΔCt</th><th class="num">2^-ΔΔCt</th><th class="num">log2FC</th>${state.effCorrection?'<th class="num">Eff-corrected abundance</th><th class="num">Eff-corrected fold</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.sample)}</td><td>${esc(r.group||'—')}</td><td>${esc(r.target)}</td><td class="num">${fmt(r.targetCt,3)}</td><td class="num">${fmt(r.referenceCt,3)}</td><td class="num">${fmt(r.deltaCt,4)}</td><td class="num">${fmt(r.relAb,6)}</td><td>${esc(r.calibrator||'—')}</td><td class="num">${fmt(r.deltaDeltaCt,4)}</td><td class="num">${fmt(r.fold,6)}</td><td class="num">${fmt(r.log2fc,4)}</td>${state.effCorrection?`<td class="num">${fmt(r.effAb,6)}</td><td class="num">${fmt(r.effFold,6)}</td>`:''}</tr>`).join('')}</tbody>`;
+  $('#groupSummaryTable').innerHTML=`<thead><tr><th>Target</th><th>Group</th><th class="num">n</th><th class="num">2^-ΔCt mean</th><th class="num">SD</th><th class="num">SEM</th><th class="num">2^-ΔΔCt mean</th><th class="num">SD</th><th class="num">SEM</th><th class="num">log2FC mean</th><th class="num">SD</th></tr></thead><tbody>${sums.map(s=>`<tr><td>${esc(s.target)}</td><td>${esc(s.group)}</td><td class="num">${s.relAbN}</td><td class="num">${fmt(s.relAbMean,6)}</td><td class="num">${fmt(s.relAbSD,6)}</td><td class="num">${fmt(s.relAbSEM,6)}</td><td class="num">${fmt(s.foldMean,6)}</td><td class="num">${fmt(s.foldSD,6)}</td><td class="num">${fmt(s.foldSEM,6)}</td><td class="num">${fmt(s.log2fcMean,4)}</td><td class="num">${fmt(s.log2fcSD,4)}</td></tr>`).join('')}</tbody>`;
+  renderPlotData();
+  renderGraphBuilderControls();
+  if($('#results-graph')?.classList.contains('active'))renderChart();
+}
+
+$('#plotDataMode').onchange=e=>{state.plotDataMode=e.target.value;renderPlotData();saveState()};
+$('#sampleBaseline').onchange=e=>{state.sampleBaseline=e.target.value;renderPlotData();if(state.graph){state.graph.baseline=e.target.value}renderGraphBuilderControls();if($('#results-graph')?.classList.contains('active'))renderChart();saveState()};
+$('#crossGeneToggle').onchange=e=>{state.crossGeneEnabled=e.target.checked;if(!state.crossGeneEnabled&&state.plotDataMode==='crossgene')state.plotDataMode='samplebase';renderPlotData();saveState()};
+$('#plotDataMetric').onchange=e=>{state.plotDataMetric=e.target.value;renderPlotData();saveState()};
+$('#crossBaseGene').onchange=e=>{state.crossGeneBaseline=e.target.value;renderPlotData();saveState()};
+$('#copyPlotDataBtn').onclick=async()=>{const t=graphReadyTSV();if(!t)return;try{await navigator.clipboard.writeText(t);$('#copyPlotStatus').textContent='已复制';setTimeout(()=>$('#copyPlotStatus').textContent='',1400)}catch(e){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();$('#copyPlotStatus').textContent='已复制';setTimeout(()=>$('#copyPlotStatus').textContent='',1400)}};
+$('#exportPlotCsvBtn').onclick=()=>{const rows=graphReadyRows();if(!rows.length)return;const headers=Object.keys(rows[0]);const q=v=>'"'+String(v??'').replace(/"/g,'""')+'"';const csv='\uFEFF'+[headers.map(q).join(','),...rows.map(r=>headers.map(h=>q(r[h]??'')).join(','))].join('\r\n');const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=state.plotDataMode==='samplebase'?'qPCR_sample_baseline_plot_data.csv':state.plotDataMode==='crossgene'?'qPCR_cross_gene_plot_data.csv':'qPCR_plot_data.csv';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+
+// Graph builder / Chart
+const GRAPH_PALETTE=['#3366cc','#dc3912','#109618','#ff9900','#990099','#0099c6','#dd4477','#66aa00','#b82e2e','#316395'];
+function graphDefaults(){return {x:'sample',y:'sampleRel',series:'auto',baseline:'',type:'barPoints',error:'sd',yScale:'linear',showPoints:true,grid:false,title:'',xTitle:'',yTitle:'Relative expression',legend:'auto',legendPos:'top',yMin:'',yMax:'',samples:[],groups:[],targets:[]}}
+function ensureGraphState(){state.graph={...graphDefaults(),...(state.graph||{})};const samples=uniqueSamples(),groups=orderedGroups(),targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');if(!state.graph.samples.length)state.graph.samples=[...samples];else state.graph.samples=state.graph.samples.filter(x=>samples.includes(x));if(!state.graph.groups.length)state.graph.groups=[...groups];else state.graph.groups=state.graph.groups.filter(x=>groups.includes(x));if(!state.graph.targets.length)state.graph.targets=[...targets];else state.graph.targets=state.graph.targets.filter(x=>targets.includes(x));if(!samples.includes(state.graph.baseline))state.graph.baseline=state.sampleBaseline&&samples.includes(state.sampleBaseline)?state.sampleBaseline:(samples[0]||'');if(!state.sampleBaseline&&state.graph.baseline)state.sampleBaseline=state.graph.baseline}
+function renderFilterList(id,items,selected,key){const box=$(id);if(!box)return;box.innerHTML=items.length?items.map(v=>`<label class="multi-item"><input type="checkbox" data-graph-filter="${key}" value="${attr(v)}" ${selected.includes(v)?'checked':''}/><span>${esc(v)}</span></label>`).join(''):'<div class="note" style="padding:6px">暂无项目</div>';}
+function defaultAxisTitle(dim){return dim==='sample'?'Sample':dim==='group'?'Group':'Target'}
+const GRAPH_METRIC_LABELS={sampleRel:'Relative expression',relAb:'2^-ΔCt',fold:'2^-ΔΔCt',log2fc:'log2FC',deltaCt:'ΔCt',targetCt:'Target Mean Ct',referenceCt:'Reference Ct',effAb:'Efficiency-corrected abundance',effFold:'Efficiency-corrected fold'};
+function renderGraphBuilderControls(){
+  ensureGraphState();const g=state.graph,samples=uniqueSamples(),groups=orderedGroups(),targets=uniqueTargets().filter(t=>state.targetRoles[t]==='target');
+  const baseline=$('#graphBaseline');if(!baseline)return;
+  baseline.innerHTML=samples.map(v=>`<option value="${attr(v)}">${esc(v)}</option>`).join('');baseline.value=g.baseline||'';
+  $('#graphX').value=g.x;$('#graphY').value=g.y;$('#graphSeries').value=g.series;$('#graphType').value=g.type;$('#graphError').value=g.error;$('#graphYScale').value=g.yScale;$('#graphShowPoints').checked=!!g.showPoints;$('#graphGrid').checked=!!g.grid;$('#graphTitle').value=g.title||'';$('#graphXTitle').value=g.xTitle||defaultAxisTitle(g.x);$('#graphYTitle').value=g.yTitle||GRAPH_METRIC_LABELS[g.y]||'';$('#graphLegend').value=g.legend;$('#graphLegendPos').value=g.legendPos;$('#graphYMin').value=g.yMin??'';$('#graphYMax').value=g.yMax??'';
+  $('#graphBaselineField').classList.toggle('hidden',g.y!=='sampleRel');
+  const y=$('#graphY');const hasEff=[...y.options].some(o=>o.value==='effAb');if(state.effCorrection&&!hasEff)y.insertAdjacentHTML('beforeend','<option value="effAb">Efficiency-corrected abundance</option><option value="effFold">Efficiency-corrected fold</option>');if(!state.effCorrection&&hasEff){['effAb','effFold'].forEach(v=>[...y.options].find(o=>o.value===v)?.remove());if(['effAb','effFold'].includes(g.y)){g.y='relAb';y.value='relAb'}} else y.value=g.y;
+  renderFilterList('#graphSampleFilter',samples,g.samples,'samples');renderFilterList('#graphGroupFilter',groups,g.groups,'groups');renderFilterList('#graphTargetFilter',targets,g.targets,'targets');
+}
+function graphMetricRows(metric){
+  ensureGraphState();const g=state.graph,baseRows=sampleCalculations();let rows=[];
+  if(metric==='sampleRel'){
+    const base=g.baseline;for(const r of baseRows){const b=baseRows.find(x=>x.sample===base&&x.target===r.target);const dd=(r.deltaCt!=null&&b?.deltaCt!=null)?r.deltaCt-b.deltaCt:null;rows.push({...r,value:dd==null?null:Math.pow(2,-dd)})}
+  }else rows=baseRows.map(r=>({...r,value:r[metric]}));
+  return rows.filter(r=>g.samples.includes(r.sample)&&g.targets.includes(r.target)&&(r.group?g.groups.includes(r.group):true));
+}
+function graphDimValue(r,dim){return dim==='sample'?r.sample:dim==='group'?r.group:r.target}
+function graphSeriesDim(rows){const g=state.graph;if(g.series!=='auto')return g.series===g.x?'none':g.series;if(g.x==='target'){const gs=[...new Set(rows.map(r=>r.group).filter(Boolean))];return gs.length>1?'group':([...new Set(rows.map(r=>r.sample))].length>1?'sample':'none')}const ts=[...new Set(rows.map(r=>r.target))];return ts.length>1?'target':'none'}
+function orderedDimValues(dim,rows){const g=state.graph;if(dim==='sample')return uniqueSamples().filter(v=>g.samples.includes(v)&&rows.some(r=>r.sample===v));if(dim==='group')return orderedGroups().filter(v=>g.groups.includes(v)&&rows.some(r=>r.group===v));return uniqueTargets().filter(t=>state.targetRoles[t]==='target'&&g.targets.includes(t)&&rows.some(r=>r.target===t))}
+const errorBarPlugin={id:'qpcrErrorBarsV7',afterDatasetsDraw(c){const ctx=c.ctx;c.data.datasets.forEach((ds,di)=>{const meta=c.getDatasetMeta(di);(ds.errors||[]).forEach((e,i)=>{const pt=meta.data[i],v=ds.data[i];if(!pt||e==null||!Number.isFinite(e)||v==null||!Number.isFinite(v))return;const y=c.scales.y,top=y.getPixelForValue(v+e),bot=y.getPixelForValue(v-e),x=pt.x;ctx.save();ctx.strokeStyle=ds.borderColor||'#344054';ctx.lineWidth=1.3;ctx.beginPath();ctx.moveTo(x,top);ctx.lineTo(x,bot);ctx.moveTo(x-5,top);ctx.lineTo(x+5,top);ctx.moveTo(x-5,bot);ctx.lineTo(x+5,bot);ctx.stroke();ctx.restore()})})}};
+const replicatePlugin={id:'qpcrReplicatesV7',afterDatasetsDraw(c){const ctx=c.ctx;c.data.datasets.forEach((ds,di)=>{if(!ds.replicates||!ds.showReplicates)return;const meta=c.getDatasetMeta(di);ds.replicates.forEach((vals,i)=>{const pt=meta.data[i];if(!pt)return;vals.forEach((v,j)=>{if(v==null||!Number.isFinite(v))return;const spread=Math.min(20,Math.max(7,vals.length*2.3));const jitter=vals.length===1?0:((j/(vals.length-1))-.5)*spread;ctx.save();ctx.beginPath();ctx.arc(pt.x+jitter,c.scales.y.getPixelForValue(v),3.6,0,Math.PI*2);ctx.fillStyle='#fff';ctx.strokeStyle=ds.borderColor||'#344054';ctx.lineWidth=1.35;ctx.fill();ctx.stroke();ctx.restore()})})})}};
+const meanLinePlugin={id:'qpcrMeanLineV7',afterDatasetsDraw(c){if(state.graph?.type!=='columnScatter')return;const ctx=c.ctx;c.data.datasets.forEach((ds,di)=>{const meta=c.getDatasetMeta(di);ds.data.forEach((v,i)=>{const pt=meta.data[i];if(!pt||v==null||!Number.isFinite(v))return;ctx.save();ctx.strokeStyle=ds.borderColor||'#344054';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(pt.x-10,pt.y);ctx.lineTo(pt.x+10,pt.y);ctx.stroke();ctx.restore()})})}};
+if(typeof Chart!=='undefined')Chart.register(errorBarPlugin,replicatePlugin,meanLinePlugin);
+function chartMessage(msg){const wrap=$('#chartWrap'),empty=$('#chartEmpty');if(!wrap||!empty)return;if(msg){empty.innerHTML=msg;empty.classList.add('show');wrap.classList.add('empty')}else{empty.textContent='';empty.classList.remove('show');wrap.classList.remove('empty')}}
+function renderChart(){
+  const canvas=$('#resultChart');if(!canvas)return;if(typeof Chart==='undefined'){chartMessage('图表组件未加载。请确认浏览器可以联网加载 Chart.js。');return}ensureGraphState();const g=state.graph;const refs=uniqueTargets().filter(t=>state.targetRoles[t]==='reference');let rows=graphMetricRows(g.y);if(chart){chart.destroy();chart=null}
+  if(!g.targets.length){chartMessage('请至少选择一个 Target。');return}if(!refs.length&&!['targetCt'].includes(g.y)){chartMessage('当前纵轴指标需要 Reference gene（内参基因），请先在“分析设置”中指定。');return}if(g.x==='group'&&!orderedGroups().length){chartMessage('当前没有 Group。请改用 Sample/Target 作为横轴，或先在“分析设置”中给 Sample 分组。');return}
+  rows=rows.filter(r=>r.value!=null&&Number.isFinite(r.value));if(!rows.length){let msg='当前筛选和纵轴指标下没有可绘制的数据。';if(['fold','log2fc','effFold'].includes(g.y))msg+=' 该指标还需要设置 Group 与 Calibrator。';chartMessage(msg);return}
+  let warn='';if(g.yScale==='logarithmic'&&rows.some(r=>r.value<=0)){g.yScale='linear';$('#graphYScale').value='linear';warn='Log10 轴要求所有 Y 值 > 0；当前数据包含 0 或负值，已自动改回 Linear。'}
+  const seriesDim=graphSeriesDim(rows),labels=orderedDimValues(g.x,rows);let seriesVals=seriesDim==='none'?[''] : orderedDimValues(seriesDim,rows);if(!labels.length||!seriesVals.length){chartMessage('当前横轴/系列选择没有可显示的数据。');return}
+  const type=g.type;const chartType=['line','columnScatter','points'].includes(type)?'line':'bar';const datasets=seriesVals.map((sv,si)=>{const color=GRAPH_PALETTE[si%GRAPH_PALETTE.length],data=[],errors=[],replicates=[];for(const lab of labels){const vals=rows.filter(r=>graphDimValue(r,g.x)===lab&&(seriesDim==='none'||graphDimValue(r,seriesDim)===sv)).map(r=>r.value).filter(Number.isFinite);data.push(vals.length?mean(vals):null);replicates.push(vals);errors.push(g.error==='none'||vals.length<2?null:(g.error==='sem'?sem(vals):sd(vals)))}const isLine=type==='line';const isPoints=type==='points';const isScatter=type==='columnScatter';return {label:seriesDim==='none'?(GRAPH_METRIC_LABELS[g.y]||'Value'):sv,data,errors,replicates,showReplicates:g.showPoints||isScatter||isPoints,borderColor:color,backgroundColor:chartType==='bar'?color+'55':color,borderWidth:1.8,borderRadius:3,showLine:isLine,spanGaps:true,tension:0,pointRadius:isLine?4:(isPoints?0:(isScatter?0:0)),pointHoverRadius:isLine?5:0,fill:false}});
+  const hasMulti=datasets.length>1,legendDisplay=g.legend==='show'||(g.legend==='auto'&&hasMulti);const yMin=g.yMin===''?undefined:Number(g.yMin),yMax=g.yMax===''?undefined:Number(g.yMax);const yTitle=g.yTitle||GRAPH_METRIC_LABELS[g.y]||'';const xTitle=g.xTitle||defaultAxisTitle(g.x);const defaultTitle=g.title||((g.targets.length===1?g.targets[0]:'qPCR')+' · '+yTitle);
+  const yCfg={type:g.yScale,beginAtZero:g.yScale==='linear'&&!['deltaCt','log2fc','targetCt','referenceCt'].includes(g.y),title:{display:!!yTitle,text:yTitle,font:{size:14,weight:'600'},color:'#172033'},grid:{display:!!g.grid,color:'#e9edf3'},ticks:{color:'#344054'},border:{color:'#344054'}};if(Number.isFinite(yMin))yCfg.min=yMin;if(Number.isFinite(yMax))yCfg.max=yMax;
+  chartMessage('');$('#metricWarning').textContent=warn;$('#metricWarning').style.display=warn?'block':'none';
+  chart=new Chart(canvas,{type:chartType,data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'nearest',intersect:false},layout:{padding:{top:6,right:12,bottom:6,left:6}},plugins:{legend:{display:legendDisplay,position:g.legendPos,labels:{usePointStyle:true,boxWidth:10,color:'#172033',font:{size:12}}},title:{display:!!defaultTitle,text:defaultTitle,color:'#172033',font:{size:17,weight:'600'},padding:{bottom:14}},tooltip:{callbacks:{footer:items=>{if(!items.length)return'';const ds=datasets[items[0].datasetIndex],n=ds.replicates?.[items[0].dataIndex]?.length||0;return `n = ${n}`}}}},scales:{x:{title:{display:!!xTitle,text:xTitle,font:{size:14,weight:'600'},color:'#172033'},grid:{display:false},ticks:{color:'#344054'},border:{color:'#344054'}},y:yCfg}}});
+}
+function syncGraphFromControls(){ensureGraphState();const g=state.graph;g.x=$('#graphX').value;g.y=$('#graphY').value;g.series=$('#graphSeries').value;g.baseline=$('#graphBaseline').value;g.type=$('#graphType').value;g.error=$('#graphError').value;g.yScale=$('#graphYScale').value;g.showPoints=$('#graphShowPoints').checked;g.grid=$('#graphGrid').checked;g.title=$('#graphTitle').value;g.xTitle=$('#graphXTitle').value;g.yTitle=$('#graphYTitle').value;g.legend=$('#graphLegend').value;g.legendPos=$('#graphLegendPos').value;g.yMin=$('#graphYMin').value;g.yMax=$('#graphYMax').value;state.sampleBaseline=g.baseline||state.sampleBaseline;saveState()}
+function graphControlChanged(e){if(e?.target?.dataset?.graphFilter){ensureGraphState();const key=e.target.dataset.graphFilter;state.graph[key]=[...document.querySelectorAll(`input[data-graph-filter="${key}"]:checked`)].map(x=>x.value);saveState();renderChart();return}syncGraphFromControls();if(e?.target?.id==='graphX'&&!$('#graphXTitle').value)$('#graphXTitle').value=defaultAxisTitle(state.graph.x);if(e?.target?.id==='graphY'&&!$('#graphYTitle').value)$('#graphYTitle').value=GRAPH_METRIC_LABELS[state.graph.y]||'';$('#graphBaselineField').classList.toggle('hidden',state.graph.y!=='sampleRel');renderChart()}
+['graphX','graphY','graphSeries','graphBaseline','graphType','graphError','graphYScale','graphShowPoints','graphGrid','graphTitle','graphXTitle','graphYTitle','graphLegend','graphLegendPos','graphYMin','graphYMax'].forEach(id=>{const el=$('#'+id);if(el)el.addEventListener(el.tagName==='INPUT'&&['text','number'].includes(el.type)?'change':'change',graphControlChanged)});
+['graphSampleFilter','graphGroupFilter','graphTargetFilter'].forEach(id=>$('#'+id)?.addEventListener('change',graphControlChanged));
+$('#refreshChartBtn').onclick=()=>{syncGraphFromControls();renderChart()};
+$('#resetGraphBtn').onclick=()=>{state.graph=graphDefaults();state.graph.baseline=state.sampleBaseline||uniqueSamples()[0]||'';renderGraphBuilderControls();renderChart();saveState()};
+$$('.results-subtab').forEach(b=>b.addEventListener('click',()=>{$$('.results-subtab').forEach(x=>x.classList.remove('active'));$$('.results-subpanel').forEach(x=>x.classList.remove('active'));b.classList.add('active');$('#results-'+b.dataset.resultSubtab).classList.add('active');if(b.dataset.resultSubtab==='graph'){renderGraphBuilderControls();setTimeout(renderChart,20)}}));
+
+// Export
+function rawExportRows(){return allWells().filter(w=>w.ct!=null||w.rawCt||w.sample||w.target).map(w=>({Plate:w.plateName,Well:w.well,Ct:w.ct??w.rawCt,Sample:w.sample,Target:w.target,Excluded:w.excluded?'Yes':'No',Manual_Sample:w.manualSample?'Yes':'No',Manual_Target:w.manualTarget?'Yes':'No'}))}
+$('#exportExcelBtn').onclick=()=>{
+  if(typeof XLSX==='undefined'){alert('Excel 组件未加载。请确认联网后重新打开网页。');return}
+  const sr=sampleCalculations().map(r=>({Sample:r.sample,Group:r.group,Target:r.target,Target_Mean_Ct:r.targetCt,Reference_Genes:r.refGenes,Reference_Ct:r.referenceCt,Delta_Ct:r.deltaCt,'2^-DeltaCt':r.relAb,Calibrator_Group:r.calibrator,DeltaDelta_Ct:r.deltaDeltaCt,'2^-DeltaDeltaCt':r.fold,log2FC:r.log2fc,Efficiency_Corrected_Abundance:r.effAb,Efficiency_Corrected_Fold:r.effFold}));
+  const gs=summarize(sampleCalculations()).map(s=>({Target:s.target,Group:s.group,n:s.relAbN,'2^-DeltaCt_Mean':s.relAbMean,'2^-DeltaCt_SD':s.relAbSD,'2^-DeltaCt_SEM':s.relAbSEM,'2^-DeltaDeltaCt_Mean':s.foldMean,'2^-DeltaDeltaCt_SD':s.foldSD,'2^-DeltaDeltaCt_SEM':s.foldSEM,log2FC_Mean:s.log2fcMean,log2FC_SD:s.log2fcSD,log2FC_SEM:s.log2fcSEM,Eff_Abundance_Mean:s.effAbMean,Eff_Abundance_SD:s.effAbSD,Eff_Fold_Mean:s.effFoldMean,Eff_Fold_SD:s.effFoldSD}));
+  const qc=groupTechnical().map(g=>({Sample:g.sample,Target:g.target,Plate:(g.plates||[]).join('; '),Valid_n:g.n,Mean_Ct:g.meanCt,SD_Ct:g.sdCt,Ct_Range:g.range,Status:g.status}));
+  const plot=graphReadyRows();const samplebase=sampleBaselineCalculations().map(r=>({Sample:r.sample,Group:r.group,Target:r.target,Baseline_Sample:r.baselineSample,DeltaDeltaCt_vs_Baseline_Sample:r.deltaDeltaCtVsSample,Relative_to_Baseline_Sample:r.relativeToSample,Efficiency_Corrected_Relative:r.effRelativeToSample}));const cross=crossGeneCalculations().map(r=>({Sample:r.sample,Group:r.group,Target:r.target,Baseline_Gene:r.baseline,Target_Mean_Ct:r.geneCt,Baseline_Mean_Ct:r.baseCt,DeltaCt_gene_vs_baseline:r.crossDelta,Relative_to_Baseline:r.crossRel,Efficiency_Corrected_Relative:r.crossEff}));const wb=XLSX.utils.book_new();const sheets=[['Raw Ct',rawExportRows()],['Technical QC',qc],['Sample-level results',sr],['Group summary',gs],['Graph-ready data',plot],['Sample-baseline relative',samplebase]];if(state.crossGeneEnabled)sheets.push(['Cross-gene relative',cross]);sheets.forEach(([name,data])=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),name));XLSX.writeFile(wb,'qPCR_results.xlsx');
+};
+$('#exportPngBtn').onclick=()=>{renderChart();const a=document.createElement('a');a.download='qPCR_chart.png';a.href=$('#resultChart').toDataURL('image/png',1);a.click()};
+$('#exportTiffBtn').onclick=()=>{renderChart();if(typeof UTIF==='undefined'){alert('TIFF 组件未加载。请确认联网后重新打开网页。');return}const src=$('#resultChart');const scale=2;const off=document.createElement('canvas');off.width=src.width*scale;off.height=src.height*scale;const ctx=off.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,off.width,off.height);ctx.imageSmoothingEnabled=true;ctx.drawImage(src,0,0,off.width,off.height);const img=ctx.getImageData(0,0,off.width,off.height);const buf=UTIF.encodeImage(img.data.buffer,off.width,off.height,{t282:[300],t283:[300],t296:[2]});const blob=new Blob([buf],{type:'image/tiff'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='qPCR_chart.tif';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)};
+
+// Project save/load
+$('#saveProjectBtn').onclick=()=>{const blob=new Blob([JSON.stringify({version:8,savedAt:new Date().toISOString(),state},null,2)],{type:'application/json'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download='qPCR_project.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+$('#loadProjectBtn').onclick=()=>$('#projectFile').click();
+$('#projectFile').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const obj=JSON.parse(await f.text());state=migrateState(obj.state||obj);selectedWells.clear();updateAll();alert('项目已载入。')}catch(err){alert('项目文件无法读取：'+err.message)}e.target.value=''};
+$('#resetBtn').onclick=()=>{if(confirm('确定清空当前项目吗？')){state=defaultState();selectedWells.clear();updateAll();switchTab('import')}};
+
+function switchTab(name){const t=$(`.tab[data-tab="${name}"]`);if(t)t.click()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function attr(s){return esc(s).replace(/`/g,'&#96;')}
+
+// restore autosave if present
+try{const auto=localStorage.getItem('qpcrAnalyzerAutosave');if(auto)state=migrateState(JSON.parse(auto))}catch(e){}
+updateAll();
+</script>
+</body>
+</html>
