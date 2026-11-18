@@ -1,10 +1,11 @@
-import { analyzePlate, calculateLoading, unitLabel, unitScale } from "./bca-core.mjs";
+import { analyzePlate, calculateLoading, calculatePreparation, unitLabel, unitScale } from "./bca-core.mjs?v=wb-prep";
 
 const byId = id => document.getElementById(id);
 const rowNames = [..."ABCDEFGH"];
 const columnCount = 12;
 const storageKey = "labToolsBcaPlateV1";
-const settingsIds = ["unit", "blank-mode", "model", "cv-limit", "wb-mass", "wb-volume", "wb-buffer"];
+const wbSettingsIds = ["wb-stock", "wb-buffer", "wb-added", "wb-mass"];
+const settingsIds = ["unit", "blank-mode", "model", "cv-limit", ...wbSettingsIds];
 const statusText = {
   ok: "范围内",
   below: "低于标准曲线范围",
@@ -12,11 +13,18 @@ const statusText = {
   missing: "无有效读数",
 };
 const loadingStatus = {
-  ok: "可配样",
-  "sample-only": "仅计算取样量",
-  "no-buffer": "待填缓冲液倍数",
-  "insufficient-volume": "总体积不足",
-  "invalid-volume": "超出可计算范围",
+  ok: "可上样",
+  "missing-mass": "待填每孔目标蛋白量",
+  "invalid-mass": "目标蛋白量须大于 0",
+  insufficient: "煮后样品体积不足",
+  invalid: "超出可计算范围",
+};
+const preparationStatus = {
+  ok: "符合 1×",
+  "missing-stock": "待填原液体积",
+  "missing-fold": "待填缓冲液倍数",
+  "missing-added": "待填实际缓冲液加入量",
+  invalid: "请检查配样数值",
 };
 
 let wells = blankPlate();
@@ -27,8 +35,11 @@ let drag = null;
 let suppressClick = false;
 let analysis = null;
 let wbRows = [];
+let wbPrepRows = [];
 let chart = null;
 const wbChoices = new Map();
+const wbOverrides = new Map();
+const wbOverrideControls = new Map();
 
 function blankPlate() {
   return rowNames.flatMap(row => Array.from({ length: columnCount }, (_, column) => ({
@@ -71,7 +82,7 @@ function numericValue(input) {
 function saveDraft() {
   try {
     const settings = Object.fromEntries(settingsIds.map(id => [id, byId(id).value]));
-    sessionStorage.setItem(storageKey, JSON.stringify({ wells, settings, choices: [...wbChoices] }));
+    sessionStorage.setItem(storageKey, JSON.stringify({ wells, settings, choices: [...wbChoices], overrides: [...wbOverrides] }));
   } catch {
     // The calculator also works when storage is unavailable.
   }
@@ -84,6 +95,7 @@ function restoreDraft() {
     wells = wells.map((well, index) => ({ ...data.wells[index], address: well.address }));
     for (const id of settingsIds) if (typeof data.settings?.[id] === "string") byId(id).value = data.settings[id];
     for (const [name, key] of data.choices ?? []) wbChoices.set(name, key);
+    for (const [name, volumes] of data.overrides ?? []) wbOverrides.set(name, volumes);
   } catch {
     // Start with the default settings when a saved draft is unavailable.
   }
@@ -315,6 +327,7 @@ function applyRole() {
 function markChanged() {
   analysis = null;
   wbRows = [];
+  wbPrepRows = [];
   byId("analysis").hidden = true;
   byId("wb").hidden = true;
   showMessage("analysis-feedback", "请点击「计算浓度」查看当前孔板的结果。");
@@ -337,11 +350,15 @@ function loadExample() {
   setPair(2, { kind: "sample", name: "样品 A", dilution: 10 }, [0.498, 0.502]);
   setPair(14, { kind: "sample", name: "样品 B", dilution: 5 }, [0.579, 0.581]);
   setPair(26, { kind: "sample", name: "样品 C", dilution: 1 }, [0.99, 1.01]);
-  const settings = { unit: "ug", "blank-mode": "raw", model: "linear", "cv-limit": "10", "wb-mass": "20", "wb-volume": "20", "wb-buffer": "4" };
+  const settings = {
+    unit: "ug", "blank-mode": "raw", model: "linear", "cv-limit": "10",
+    "wb-stock": "50", "wb-buffer": "6", "wb-added": "10", "wb-mass": "20",
+  };
   for (const [id, value] of Object.entries(settings)) byId(id).value = value;
   previousUnit = settings.unit;
   byId("standard-concentration").value = "";
   wbChoices.clear();
+  wbOverrides.clear();
   updateAssignmentFields();
   syncPlate();
   clearSelection();
@@ -454,6 +471,7 @@ function renderAnalysis(result, settings) {
   list.hidden = !warnings.length;
   byId("analysis").hidden = false;
   byId("wb").hidden = false;
+  renderOverrides();
   renderLoading();
   try {
     plotCurve(curve, points, unit);
@@ -484,54 +502,110 @@ function chooseDilution(name, candidates) {
   return { display: select, source };
 }
 
+function amount(input, minimum, allowMinimum = false) {
+  if (input.validity.badInput) return NaN;
+  const value = numericValue(input);
+  if (value === null) return null;
+  return value > minimum || (allowMinimum && value === minimum) ? value : NaN;
+}
+
+function renderOverrides() {
+  const names = [...new Set(analysis.result.samples.map(sample => sample.name))];
+  const fields = [
+    ["stock", "原液体积（µL）", "使用上方体积"],
+    ["added", "实际缓冲液加入量（µL）", "使用上方体积"],
+    ["measured", "实测煮后体积（µL）", "按混合体积估算"],
+  ];
+  const rows = [];
+  wbOverrideControls.clear();
+  for (const name of names) {
+    const controls = {};
+    for (const [key, label, placeholder] of fields) {
+      const input = element("input");
+      input.type = "number";
+      input.step = "any";
+      input.min = "0";
+      input.inputMode = "decimal";
+      input.placeholder = placeholder;
+      input.setAttribute("aria-label", `${name} ${label}`);
+      input.value = wbOverrides.get(name)?.[key] ?? "";
+      input.addEventListener("input", () => {
+        wbOverrides.set(name, Object.fromEntries(Object.entries(controls).map(([field, control]) => [field, control.value])));
+        saveDraft();
+        renderLoading();
+      });
+      controls[key] = input;
+    }
+    wbOverrideControls.set(name, controls);
+    rows.push([name, ...Object.values(controls)]);
+  }
+  renderTable("wb-overrides", ["样品", ...fields.map(([, label]) => label)], rows);
+}
+
+const prepHeaders = ["样品", "原液体积（µL）", "缓冲液原液倍数", "应加缓冲液（µL）",
+  "实际加入（µL）", "混合体积（µL）", "混合后缓冲液倍数", "核对结果"];
+const loadingHeaders = ["样品", "所用 BCA 稀释倍数", "原液浓度（µg/µL）", "煮后体积（µL）",
+  "体积来源", "煮后浓度（µg/µL）", "目标蛋白量（µg/孔）", "上样体积（µL/孔）", "状态"];
+
 function renderLoading() {
   if (!analysis) return;
-  const massInput = byId("wb-mass");
-  const volumeInput = byId("wb-volume");
-  const bufferInput = byId("wb-buffer");
-  const mass = numericValue(massInput);
-  const total = numericValue(volumeInput);
-  const fold = numericValue(bufferInput);
-  const bad = !massInput.validity.valid || !volumeInput.validity.valid || !bufferInput.validity.valid ||
-    (mass !== null && mass <= 0) || (total !== null && total <= 0) || (fold !== null && fold <= 1);
-  const unit = unitLabel[analysis.settings.unit];
+  const defaultStock = amount(byId("wb-stock"), 0);
+  const defaultAdded = amount(byId("wb-added"), 0, true);
+  const fold = amount(byId("wb-buffer"), 1);
+  const mass = amount(byId("wb-mass"), 0);
   const scale = unitScale[analysis.settings.unit];
   const groups = new Map();
   for (const sample of analysis.result.samples) {
     if (!groups.has(sample.name)) groups.set(sample.name, []);
     if (sample.status === "ok" && sample.original > 0) groups.get(sample.name).push(sample);
   }
-  const rows = [];
+  wbPrepRows = [];
   wbRows = [];
+  const prepRows = [];
+  const loadingRows = [];
   for (const [name, candidates] of groups) {
+    const controls = wbOverrideControls.get(name);
+    const stock = amount(controls.stock, 0) ?? defaultStock;
+    const added = amount(controls.added, 0, true) ?? defaultAdded;
+    const measured = amount(controls.measured, 0);
+    const prep = calculatePreparation(stock, added, fold, measured);
+    let prepStatus = preparationStatus[prep.status];
+    if (prep.status === "below") prepStatus = `偏低，少加 ${format(-prep.difference)} µL`;
+    if (prep.status === "above") prepStatus = `偏高，多加 ${format(prep.difference)} µL`;
+    prepRows.push([
+      name, format(stock), fold > 1 ? `${format(fold)}×` : "—",
+      highlight(format(prep.expected), "result-primary"), format(added), format(prep.total),
+      prep.actualFold === null ? "—" : `${format(prep.actualFold)}×`,
+      highlight(prepStatus, ["below", "above", "invalid"].includes(prep.status) ? "attention" : ""),
+    ]);
+    wbPrepRows.push([name, stock, fold, prep.expected, added, prep.total, prep.actualFold, prepStatus]);
+
     const { source, display } = chooseDilution(name, candidates);
-    const loading = source && !bad && mass !== null ? calculateLoading(source.original, scale, mass, total, fold) : null;
+    const concentration = source ? source.original * (scale / 1000) : null;
+    const loading = source && stock > 0 && prep.finalVolume > 0
+      ? calculateLoading(concentration, stock, prep.finalVolume, mass)
+      : null;
+    const volumeSource = prep.finalVolume === null ? "—" : prep.measured ? "实测" : "按混合体积估算";
     let status;
     if (loading) status = loadingStatus[loading.status];
     else if (!candidates.length) status = "无可用 BCA 浓度";
     else if (!source) status = "待选稀释倍数";
-    else status = "待填配样条件";
-    const stock = source ? source.original * (scale / 1000) : null;
-    rows.push([
-      name, display, format(stock), highlight(format(loading?.sample), "result-primary"),
-      format(loading?.buffer), format(loading?.diluent), format(loading?.finalConcentration),
-      highlight(status, loading?.status === "insufficient-volume" || !candidates.length ? "attention" : ""),
+    else if (Number.isNaN(measured)) status = "实测煮后体积须大于 0";
+    else if (Number.isNaN(stock) || Number.isNaN(added)) status = "请检查配样体积";
+    else status = "待填原液与实际缓冲液体积";
+    if (loading?.status === "ok" && prep.status !== "ok") status = "上样体积已算，请核对缓冲液";
+    loadingRows.push([
+      name, display, format(concentration), format(prep.finalVolume), volumeSource,
+      format(loading?.concentration), format(mass), highlight(format(loading?.volume), "result-primary"),
+      highlight(status, loading?.status === "ok" && prep.status === "ok" ? "" : "attention"),
     ]);
     wbRows.push([
-      name, source?.dilution ?? null, source?.original ?? null, unit, stock, mass, total, fold,
-      loading?.sample ?? null, loading?.buffer ?? null, loading?.diluent ?? null,
-      loading?.finalConcentration ?? null, status,
+      name, source?.dilution ?? null, concentration, prep.finalVolume, volumeSource,
+      loading?.concentration ?? null, mass, loading?.volume ?? null, status,
     ]);
   }
-  renderTable("wb-results", [
-    "样品", "所用 BCA 稀释倍数", "原样（µg/µL）", "取样原液（µL）", "上样缓冲液（µL）",
-    "补液（µL）", "配样后浓度（µg/µL）", "状态",
-  ], rows);
-  let message = "";
-  if (bad) message = "目标蛋白量和总体积须大于 0，缓冲液原液倍数须大于 1。";
-  else if (mass === null) message = "填写每孔目标蛋白量即可计算取样原液体积。";
-  else if (fold !== null && total === null) message = "填写总体积后可计算上样缓冲液和补液体积。";
-  showMessage("wb-feedback", message, bad);
+  renderTable("wb-prep-results", prepHeaders, prepRows);
+  renderTable("wb-results", loadingHeaders, loadingRows);
 }
 
 function calculate() {
@@ -573,7 +647,8 @@ function exportWorkbook() {
   const scale = unitScale[settings.unit];
   const book = xlsx.utils.book_new();
   const addSheet = (name, rows) => {
-    const worksheet = xlsx.utils.aoa_to_sheet(rows);
+    const values = rows.map(row => row.map(value => typeof value === "number" && !Number.isFinite(value) ? null : value));
+    const worksheet = xlsx.utils.aoa_to_sheet(values);
     worksheet["!cols"] = rows[0].map(heading => ({ wch: Math.max(15, heading.length * 2) }));
     xlsx.utils.book_append_sheet(book, worksheet, name);
   };
@@ -612,12 +687,8 @@ function exportWorkbook() {
       groupNotes(sample, settings.cvLimit).join(" · "),
     ]),
   ]);
-  addSheet("WB 配样", [
-    ["样品", "所用 BCA 稀释倍数", "原样浓度", "浓度单位", "原样（µg/µL）",
-      "目标蛋白量（µg）", "配样总体积（µL）", "上样缓冲液原液倍数", "取样原液（µL）",
-      "上样缓冲液（µL）", "补液（µL）", "配样后浓度（µg/µL）", "状态"],
-    ...wbRows,
-  ]);
+  addSheet("WB 变性配样", [prepHeaders, ...wbPrepRows]);
+  addSheet("WB 煮后上样", [loadingHeaders, ...wbRows]);
   try {
     xlsx.writeFile(book, "BCA_WB_定量结果.xlsx");
     showMessage("export-feedback", "已生成 Excel 文件。");
@@ -655,6 +726,7 @@ byId("reset").addEventListener("click", () => {
   if (wells.some(well => well.kind || well.od !== null || well.excluded) && !confirm("清空全部吸光度读数和孔位分配？")) return;
   wells = blankPlate();
   wbChoices.clear();
+  wbOverrides.clear();
   syncPlate();
   clearSelection();
   showMessage("assignment-feedback", "已重置孔板。");
@@ -672,7 +744,7 @@ byId("unit").addEventListener("change", () => {
   markChanged();
 });
 for (const id of ["blank-mode", "model", "cv-limit"]) byId(id).addEventListener("input", markChanged);
-for (const id of ["wb-mass", "wb-volume", "wb-buffer"]) {
+for (const id of wbSettingsIds) {
   byId(id).addEventListener("input", () => {
     saveDraft();
     renderLoading();

@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BCA 蛋白定量与 WB 配样 · 实验室计算工具</title>
   <link rel="stylesheet" href="./lab-nav.css">
-  <link rel="stylesheet" href="./bca.css">
+  <link rel="stylesheet" href="./bca.css?v=wb-prep">
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script type="module" src="./bca.mjs"></script>
+  <script type="module" src="./bca.mjs?v=wb-prep"></script>
 </head>
 <body>
   <header class="site-header">
@@ -143,24 +143,40 @@
     <section class="card" id="wb" aria-labelledby="wb-title" hidden>
       <div class="card-heading">
         <div>
-          <h2 id="wb-title">3. WB 上样体积换算</h2>
-          <p class="hint">按 BCA 还原的原样浓度配样。每孔取样体积 = 目标蛋白量 ÷ 原样浓度（以 µg/µL 计）。</p>
+          <h2 id="wb-title">3. WB 变性配样与上样体积</h2>
         </div>
       </div>
-      <div class="wb-settings">
-        <label class="field">目标蛋白量（µg/孔）
-          <input id="wb-mass" type="number" step="any" min="0" inputmode="decimal" placeholder="如 20">
-        </label>
-        <label class="field">配样总体积（µL/孔，可选）
-          <input id="wb-volume" type="number" step="any" min="0" inputmode="decimal" placeholder="如 20">
-        </label>
-        <label class="field">上样缓冲液原液倍数（可选）
-          <input id="wb-buffer" type="number" step="any" min="1" inputmode="decimal" placeholder="如 4 或 5">
-        </label>
+      <div class="wb-stage">
+        <h3>变性前核对配比</h3>
+        <div class="wb-settings">
+          <label class="field">样品原液体积（µL/管）
+            <input id="wb-stock" type="number" step="any" min="0" inputmode="decimal" placeholder="如 50">
+          </label>
+          <label class="field">Loading buffer 原液倍数
+            <input id="wb-buffer" type="number" step="any" min="1" inputmode="decimal" placeholder="如 6">
+          </label>
+          <label class="field">实际加入缓冲液（µL/管）
+            <input id="wb-added" type="number" step="any" min="0" inputmode="decimal" placeholder="如 10">
+          </label>
+        </div>
+        <p class="hint">默认应用到所有样品。按混合后缓冲液为 1× 核对，允许 ±0.01× 的取整误差。</p>
+        <details class="wb-overrides">
+          <summary>按样品设置体积（可选）</summary>
+          <p class="hint">原液和缓冲液体积可逐管覆盖上面的数值。实测煮后体积留空时，按原液与实际加入缓冲液体积之和估算。</p>
+          <div class="table-scroll"><table id="wb-overrides" class="results-table wb-table" aria-label="按样品设置配样体积"></table></div>
+        </details>
+        <div class="table-scroll"><table id="wb-prep-results" class="results-table wb-table" aria-label="变性配样核对结果"></table></div>
       </div>
-      <p class="hint">输入总体积和缓冲液倍数后，按缓冲液终浓度 1× 计算缓冲液和补液体积。</p>
-      <p id="wb-feedback" class="hint feedback" role="status"></p>
-      <div class="table-scroll"><table id="wb-results" class="results-table" aria-label="WB 上样体积结果"></table></div>
+      <div class="wb-stage">
+        <h3>煮后按目标蛋白量上样</h3>
+        <div class="wb-settings">
+          <label class="field">每孔目标蛋白量（µg）
+            <input id="wb-mass" type="number" step="any" min="0" inputmode="decimal" placeholder="如 20">
+          </label>
+        </div>
+        <p class="hint">煮后浓度 = 原液浓度 × 原液体积 ÷ 煮后体积。每孔上样体积 = 目标蛋白量 ÷ 煮后浓度。</p>
+        <div class="table-scroll"><table id="wb-results" class="results-table wb-table" aria-label="煮后上样体积结果"></table></div>
+      </div>
     </section>
     <noscript><p class="card">请启用 JavaScript 以录入和计算。</p></noscript>
   </main>

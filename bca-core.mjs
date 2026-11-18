@@ -155,21 +155,34 @@ export function analyzePlate(wells, settings) {
   return { blank, blankGroup, standards, points, curve, samples, warnings };
 }
 
-export function calculateLoading(concentration, scale, mass, total, bufferFold) {
-  const stockUgPerUl = concentration * (scale / 1000);
-  const sample = mass / stockUgPerUl;
-  if (!Number.isFinite(sample) || sample <= 0) return { status: "invalid-volume" };
-  if (total === null) return { status: "sample-only", sample };
-  const buffer = bufferFold === null ? null : total / bufferFold;
-  const remaining = total - sample - (buffer ?? 0);
-  if (remaining < -1e-12 * total) return { status: "insufficient-volume", sample, buffer };
-  const finalConcentration = mass / total;
-  if (!Number.isFinite(finalConcentration)) return { status: "invalid-volume", sample, buffer };
-  return {
-    status: buffer === null ? "no-buffer" : "ok",
-    sample,
-    buffer,
-    diluent: buffer === null ? null : Math.max(0, remaining),
-    finalConcentration,
-  };
+export function calculatePreparation(stock, added, fold, measuredVolume) {
+  const hasStock = Number.isFinite(stock) && stock > 0;
+  const hasAdded = Number.isFinite(added) && added >= 0;
+  const hasFold = Number.isFinite(fold) && fold > 1;
+  const total = hasStock && hasAdded ? stock + added : null;
+  const measured = Number.isFinite(measuredVolume) && measuredVolume > 0;
+  const finalVolume = measuredVolume === null ? total : measured ? measuredVolume : null;
+  const expected = hasStock && hasFold ? stock / (fold - 1) : null;
+  const actualFold = total !== null && hasFold ? (added / total) * fold : null;
+  const difference = expected !== null && hasAdded ? added - expected : null;
+  let status = "ok";
+  if ([stock, added, fold].some(Number.isNaN)) status = "invalid";
+  else if (!hasStock) status = "missing-stock";
+  else if (!hasFold) status = "missing-fold";
+  else if (!hasAdded) status = "missing-added";
+  else if (actualFold < 0.99) status = "below";
+  else if (actualFold > 1.01) status = "above";
+  return { status, total, measured, finalVolume, expected, actualFold, difference };
+}
+
+export function calculateLoading(stockConcentration, stockVolume, finalVolume, targetMass) {
+  const totalProtein = stockConcentration * stockVolume;
+  const concentration = totalProtein / finalVolume;
+  if (!Number.isFinite(concentration) || concentration <= 0) return { status: "invalid" };
+  if (targetMass === null) return { status: "missing-mass", concentration };
+  if (!Number.isFinite(targetMass) || targetMass <= 0) return { status: "invalid-mass", concentration };
+  const volume = targetMass / concentration;
+  if (!Number.isFinite(volume) || volume <= 0) return { status: "invalid", concentration };
+  if (volume - finalVolume > 1e-12 * finalVolume) return { status: "insufficient", concentration, volume };
+  return { status: "ok", concentration, volume };
 }
