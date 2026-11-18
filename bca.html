@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BCA 蛋白定量与 WB 配样 · 实验室计算工具</title>
+  <link rel="stylesheet" href="./lab-nav.css">
+  <link rel="stylesheet" href="./bca.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script type="module" src="./bca.mjs"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-content">
+      <div>
+        <h1>BCA 蛋白定量与 WB 配样</h1>
+        <p>96 孔板录入 · 蛋白浓度换算 · Western blot 上样体积</p>
+      </div>
+      <nav class="lab-nav" aria-label="实验室计算工具">
+        <a href="./">qPCR 相对定量</a>
+        <a href="./bca.html" aria-current="page">BCA 蛋白定量 / WB 配样</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    <section class="card" aria-labelledby="plate-title">
+      <div class="card-heading">
+        <div>
+          <h2 id="plate-title">1. 录入吸光度并分配孔位</h2>
+          <p class="hint">在对应孔输入吸光度（A₅₆₂）。点击或拖动孔号可多选，点击行列标题可选整行或整列。输入时按 Enter 可跳到下一孔。</p>
+        </div>
+        <div class="actions">
+          <button id="example" type="button">载入示例</button>
+          <button id="clear-readings" type="button">清空读数</button>
+          <button id="reset" type="button">重置孔板</button>
+        </div>
+      </div>
+      <div class="plate-workspace">
+        <div>
+          <div class="plate-scroll" tabindex="0" aria-label="手工录入吸光度的 96 孔板">
+            <table class="plate" id="plate" aria-label="96 孔板"></table>
+          </div>
+          <div class="plate-footer">
+            <div class="legend" aria-label="孔位颜色">
+              <span class="legend-item blank">空白</span>
+              <span class="legend-item standard">标准品</span>
+              <span class="legend-item sample">样品</span>
+              <span class="legend-item excluded">已排除</span>
+            </div>
+            <span id="plate-progress" class="hint"></span>
+          </div>
+        </div>
+        <aside class="assignment" aria-label="孔位分配与曲线设置">
+          <div class="section-heading">
+            <h3>孔位分配</h3>
+            <button id="clear-selection" class="small" type="button">取消选择</button>
+          </div>
+          <div id="selection" class="selection" aria-live="polite">请先选择孔位</div>
+          <label class="field">孔位类型
+            <select id="role">
+              <option value="blank">空白</option>
+              <option value="standard">BSA 标准品</option>
+              <option value="sample">样品</option>
+            </select>
+          </label>
+          <label class="field" id="standard-field" hidden>标准品浓度 <span id="standard-unit">µg/mL</span>
+            <input id="standard-concentration" type="number" step="any" min="0" inputmode="decimal" placeholder="如 500">
+          </label>
+          <div id="sample-fields" hidden>
+            <label class="field">样品名称
+              <input id="sample-name" type="text" maxlength="80" placeholder="如 WT-1">
+            </label>
+            <label class="field">BCA 上板前稀释倍数
+              <input id="sample-dilution" type="number" step="any" min="1" inputmode="decimal" value="1">
+            </label>
+            <p class="hint">原液填 1。10 µL 原液加 90 µL 稀释液，填 10。</p>
+          </div>
+          <button id="apply-role" class="primary" type="button">分配给所选孔</button>
+          <div class="actions secondary-actions">
+            <button id="remove-role" class="small" type="button">清除分配</button>
+            <button id="exclude" class="small" type="button">排除所选孔</button>
+            <button id="include" class="small" type="button">恢复所选孔</button>
+          </div>
+          <p id="assignment-feedback" class="hint feedback" role="status"></p>
+          <div class="curve-settings">
+            <h3>曲线设置</h3>
+            <label class="field">标准品与结果单位
+              <select id="unit">
+                <option value="ug">µg/mL</option>
+                <option value="mg">mg/mL</option>
+              </select>
+            </label>
+            <label class="field">吸光度输入
+              <select id="blank-mode">
+                <option value="raw">原始读数，扣除空白均值</option>
+                <option value="corrected">已扣空白</option>
+              </select>
+            </label>
+            <label class="field">曲线模型
+              <select id="model">
+                <option value="linear">线性（带截距）</option>
+                <option value="quadratic">二次曲线</option>
+              </select>
+            </label>
+            <label class="field">复孔 CV 提示阈值（%）
+              <input id="cv-limit" type="number" step="any" min="0" inputmode="decimal" value="10">
+            </label>
+          </div>
+        </aside>
+      </div>
+      <div class="calculate-bar">
+        <p id="analysis-feedback" class="hint feedback" role="status">填好读数并分配孔位后，点击计算浓度。</p>
+        <button id="calculate" class="primary" type="button">计算浓度</button>
+      </div>
+    </section>
+
+    <section class="card" id="analysis" aria-labelledby="analysis-title" hidden>
+      <div class="card-heading">
+        <div>
+          <h2 id="analysis-title" tabindex="-1">2. 标准曲线与浓度结果</h2>
+          <p class="hint">同组复孔先取平均，再用曲线反算。原样浓度 = 测定液浓度 × BCA 上板前稀释倍数。</p>
+        </div>
+        <button id="export" type="button">导出 Excel</button>
+      </div>
+      <p id="export-feedback" class="hint feedback" role="status"></p>
+      <div class="analysis-grid">
+        <figure class="curve-figure">
+          <div class="chart">
+            <canvas id="curve" role="img" aria-label="BSA 标准点及拟合曲线"></canvas>
+            <p id="chart-fallback" class="hint" hidden>图表组件未加载。可在右侧查看拟合参数和标准点。</p>
+          </div>
+        </figure>
+        <div>
+          <dl id="fit-summary" class="fit-summary"></dl>
+          <div class="table-scroll"><table id="standard-results" class="results-table" aria-label="标准品复孔汇总"></table></div>
+        </div>
+      </div>
+      <ul id="warnings" class="warnings" hidden></ul>
+      <div class="table-scroll"><table id="sample-results" class="results-table" aria-label="样品浓度结果"></table></div>
+    </section>
+
+    <section class="card" id="wb" aria-labelledby="wb-title" hidden>
+      <div class="card-heading">
+        <div>
+          <h2 id="wb-title">3. WB 上样体积换算</h2>
+          <p class="hint">按 BCA 还原的原样浓度配样。每孔取样体积 = 目标蛋白量 ÷ 原样浓度（以 µg/µL 计）。</p>
+        </div>
+      </div>
+      <div class="wb-settings">
+        <label class="field">目标蛋白量（µg/孔）
+          <input id="wb-mass" type="number" step="any" min="0" inputmode="decimal" placeholder="如 20">
+        </label>
+        <label class="field">配样总体积（µL/孔，可选）
+          <input id="wb-volume" type="number" step="any" min="0" inputmode="decimal" placeholder="如 20">
+        </label>
+        <label class="field">上样缓冲液原液倍数（可选）
+          <input id="wb-buffer" type="number" step="any" min="1" inputmode="decimal" placeholder="如 4 或 5">
+        </label>
+      </div>
+      <p class="hint">输入总体积和缓冲液倍数后，按缓冲液终浓度 1× 计算缓冲液和补液体积。</p>
+      <p id="wb-feedback" class="hint feedback" role="status"></p>
+      <div class="table-scroll"><table id="wb-results" class="results-table" aria-label="WB 上样体积结果"></table></div>
+    </section>
+    <noscript><p class="card">请启用 JavaScript 以录入和计算。</p></noscript>
+  </main>
+</body>
+</html>

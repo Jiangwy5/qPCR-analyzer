@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>qPCR 相对定量分析器 · Final</title>
+<link rel="stylesheet" href="./lab-nav.css">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/utif@3.1.0/UTIF.js"></script>
@@ -70,6 +71,10 @@ input[type="checkbox"]{min-height:auto;width:16px;height:16px}.filename{font-siz
   <div class="header-inner">
     <div><h1>qPCR 相对定量分析器</h1><div class="subtitle">96孔板 · 技术复孔 QC · ΔCt / ΔΔCt · 样本基准相对定量 · Excel / TIFF</div><div id="projectStatus" class="project-status">空白项目</div></div>
     <div class="toolbar">
+      <nav class="lab-nav" aria-label="实验室计算工具">
+        <a href="./" aria-current="page">qPCR 相对定量</a>
+        <a href="./bca.html">BCA 蛋白定量 / WB 配样</a>
+      </nav>
       <button id="saveProjectBtn">保存项目</button>
       <button id="loadProjectBtn">载入项目</button>
       <input id="projectFile" type="file" accept=".json" class="hidden" />
