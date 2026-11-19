@@ -1,11 +1,15 @@
-import { analyzePlate, calculateLoading, calculatePreparation, unitLabel, unitScale } from "./bca-core.mjs?v=wb-prep";
+import {
+  analyzePlate, calculateLoading, calculatePreparation, commonStandardAssignments,
+  commonStandardLevels, unitLabel, unitScale,
+} from "./bca-core.mjs?v=standard-preset";
 
 const byId = id => document.getElementById(id);
 const rowNames = [..."ABCDEFGH"];
 const columnCount = 12;
 const storageKey = "labToolsBcaPlateV1";
 const wbSettingsIds = ["wb-stock", "wb-buffer", "wb-added", "wb-mass"];
-const settingsIds = ["unit", "blank-mode", "model", "cv-limit", ...wbSettingsIds];
+const presetSettingsIds = ["preset-basis", "preset-stock", "preset-volume"];
+const settingsIds = ["unit", "blank-mode", "model", "cv-limit", ...wbSettingsIds, ...presetSettingsIds];
 const statusText = {
   ok: "范围内",
   below: "低于标准曲线范围",
@@ -143,6 +147,7 @@ function renderSelection() {
   for (const id of ["apply-role", "remove-role", "exclude", "include", "clear-selection"]) {
     byId(id).disabled = names.length === 0;
   }
+  byId("preset-selected").disabled = names.length !== commonStandardLevels.length;
 }
 
 function clearSelection() {
@@ -165,10 +170,12 @@ function renderWell(index) {
     standard: `标准品 ${marker} ${unitLabel[unit]}`,
     sample: `样品 ${marker} · BCA 稀释 ${well.dilution}×`,
   }[well.kind] ?? "";
+  const volumeLabel = well.standardVolume === undefined ? "" : `加 ${well.standardVolume} µL BSA`;
   for (const role of ["blank", "standard", "sample"]) cell.classList.toggle(role, well.kind === role);
   cell.classList.toggle("excluded", well.excluded);
-  tag.textContent = well.excluded ? "排除" : marker;
-  cell.title = [well.address, detail, well.excluded ? "已排除" : ""].filter(Boolean).join(" · ");
+  const plateLabel = volumeLabel && well.kind === "standard" ? `${well.standardVolume} µL` : marker;
+  tag.textContent = well.excluded ? "排除" : plateLabel;
+  cell.title = [well.address, detail, volumeLabel, well.excluded ? "已排除" : ""].filter(Boolean).join(" · ");
   button.setAttribute("aria-label", cell.title);
 }
 
@@ -289,6 +296,49 @@ function updateAssignmentFields() {
   byId("standard-unit").textContent = unitLabel[byId("unit").value];
 }
 
+function readStandardPreset() {
+  return commonStandardAssignments(
+    byId("preset-basis").value,
+    byId("unit").value,
+    numericValue(byId("preset-stock")),
+    numericValue(byId("preset-volume")),
+  );
+}
+
+function updateStandardPreset() {
+  const byVolume = byId("preset-basis").value === "volume";
+  byId("preset-levels").textContent = commonStandardLevels.join(" · ");
+  for (const field of document.querySelectorAll(".preset-volume-field")) field.hidden = !byVolume;
+  byId("preset-volume-hint").hidden = !byVolume;
+  try {
+    const unit = byId("unit").value;
+    const values = readStandardPreset().map(well => format((well.concentration ?? 0) / unitScale[unit]));
+    showMessage("preset-preview", `拟合使用的标准品浓度（${unitLabel[unit]}） ${values.join("、")}`);
+  } catch (error) {
+    showMessage("preset-preview", error.message, true);
+  }
+}
+
+function applyStandardPreset(indices) {
+  let assignments;
+  try {
+    assignments = readStandardPreset();
+  } catch (error) {
+    showMessage("preset-feedback", error.message, true);
+    return;
+  }
+  const sampleWells = indices.filter(index => wells[index].kind === "sample").map(index => wells[index].address);
+  if (sampleWells.length && !confirm(`将把 ${sampleWells.join("、")} 从样品改为标准样孔。保留读数，继续套用？`)) return;
+  indices.forEach((index, offset) => {
+    Object.assign(wells[index], assignments[offset], { name: undefined, dilution: undefined });
+    renderWell(index);
+  });
+  showMessage("preset-feedback", `已套用至 ${indices.map(index => wells[index].address).join("、")}。可点击「计算浓度」重新拟合。`);
+  clearSelection();
+  renderPlateProgress();
+  markChanged();
+}
+
 function setForSelection(update, message) {
   for (const index of selected) {
     update(wells[index]);
@@ -302,7 +352,7 @@ function setForSelection(update, message) {
 
 function applyRole() {
   const kind = byId("role").value;
-  const assignment = { kind, concentration: undefined, name: undefined, dilution: undefined };
+  const assignment = { kind, concentration: undefined, standardVolume: undefined, name: undefined, dilution: undefined };
   if (kind === "standard") {
     const concentration = numericValue(byId("standard-concentration")) * unitScale[byId("unit").value];
     if (concentration <= 0 || !Number.isFinite(concentration)) {
@@ -360,6 +410,8 @@ function loadExample() {
   wbChoices.clear();
   wbOverrides.clear();
   updateAssignmentFields();
+  updateStandardPreset();
+  showMessage("preset-feedback", "");
   syncPlate();
   clearSelection();
   showMessage("assignment-feedback", "已载入示例孔板和 WB 配样设置。");
@@ -653,11 +705,11 @@ function exportWorkbook() {
     xlsx.utils.book_append_sheet(book, worksheet, name);
   };
   addSheet("原始孔位", [
-    ["孔位", "吸光度 A562", "类型", `BSA 浓度（${unit}）`, "样品", "BCA 稀释倍数", "已排除"],
+    ["孔位", "吸光度 A562", "类型", `BSA 浓度（${unit}）`, "样品", "BCA 稀释倍数", "已排除", "BSA 标准液加入量（µL）"],
     ...wells.map(well => [
       well.address, well.od, { blank: "空白", standard: "标准品", sample: "样品" }[well.kind] ?? "",
       well.concentration === undefined ? null : well.concentration / scale, well.name ?? "",
-      well.dilution ?? null, well.excluded,
+      well.dilution ?? null, well.excluded, well.standardVolume ?? null,
     ]),
   ]);
   const { curve } = result;
@@ -700,6 +752,16 @@ function exportWorkbook() {
 restoreDraft();
 createPlate();
 updateAssignmentFields();
+updateStandardPreset();
+for (const id of presetSettingsIds) {
+  byId(id).addEventListener("input", () => {
+    showMessage("preset-feedback", "");
+    updateStandardPreset();
+    saveDraft();
+  });
+}
+byId("preset-default").addEventListener("click", () => applyStandardPreset(commonStandardLevels.map((_, index) => index)));
+byId("preset-selected").addEventListener("click", () => applyStandardPreset([...selected].sort((a, b) => a - b)));
 byId("role").addEventListener("change", updateAssignmentFields);
 byId("clear-selection").addEventListener("click", clearSelection);
 byId("apply-role").addEventListener("click", applyRole);
@@ -707,6 +769,7 @@ byId("remove-role").addEventListener("click", () => setForSelection(well => {
   delete well.name;
   delete well.dilution;
   delete well.concentration;
+  delete well.standardVolume;
   well.kind = null;
 }, "已清除分配"));
 byId("exclude").addEventListener("click", () => setForSelection(well => { well.excluded = true; }, "已排除"));
@@ -729,6 +792,7 @@ byId("reset").addEventListener("click", () => {
   wbOverrides.clear();
   syncPlate();
   clearSelection();
+  showMessage("preset-feedback", "");
   showMessage("assignment-feedback", "已重置孔板。");
   markChanged();
 });
@@ -740,6 +804,7 @@ byId("unit").addEventListener("change", () => {
   if (value !== null) input.value = value * (unitScale[previousUnit] / unitScale[unit]);
   previousUnit = unit;
   updateAssignmentFields();
+  updateStandardPreset();
   for (const [index] of wells.entries()) renderWell(index);
   markChanged();
 });

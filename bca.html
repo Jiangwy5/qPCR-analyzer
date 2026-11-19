@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BCA 蛋白定量与 WB 配样 · 实验室计算工具</title>
   <link rel="stylesheet" href="./lab-nav.css">
-  <link rel="stylesheet" href="./bca.css?v=wb-prep">
+  <link rel="stylesheet" href="./bca.css?v=standard-preset">
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script type="module" src="./bca.mjs?v=wb-prep"></script>
+  <script type="module" src="./bca.mjs?v=standard-preset"></script>
 </head>
 <body>
   <header class="site-header">
@@ -36,6 +36,31 @@
           <button id="reset" type="button">重置孔板</button>
         </div>
       </div>
+      <details class="standard-preset">
+        <summary>常用标准样 <span class="hint" id="preset-levels"></span></summary>
+        <div class="preset-fields">
+          <label class="field">数字含义
+            <select id="preset-basis">
+              <option value="volume">BSA 标准液加样体积（µL，E112 默认）</option>
+              <option value="concentration">标准品浓度（当前单位）</option>
+            </select>
+          </label>
+          <label class="field preset-volume-field">BSA 标准液浓度（mg/mL）
+            <input id="preset-stock" type="number" step="any" min="0" inputmode="decimal" value="1">
+          </label>
+          <label class="field preset-volume-field">加工作液前每孔体积（µL）
+            <input id="preset-volume" type="number" step="any" min="0" inputmode="decimal" value="20">
+          </label>
+        </div>
+        <p id="preset-preview" class="hint" aria-live="polite"></p>
+        <p class="hint" id="preset-volume-hint">标准孔先补至指定体积，样品孔使用相同的取样体积。</p>
+        <div class="actions">
+          <button id="preset-default" type="button">套用至 A1–A8</button>
+          <button id="preset-selected" type="button" disabled>套用至所选 8 孔</button>
+        </div>
+        <p class="hint">0 为空白。套用后保留已录入的吸光度。自行选孔时按 A1–A12、B1–B12 的顺序分配。</p>
+        <p id="preset-feedback" class="hint feedback" role="status"></p>
+      </details>
       <div class="plate-workspace">
         <div>
           <div class="plate-scroll" tabindex="0" aria-label="手工录入吸光度的 96 孔板">
