@@ -2,22 +2,13 @@ export const unitScale = { ug: 1, mg: 1000 };
 export const unitLabel = { ug: "µg/mL", mg: "mg/mL" };
 export const commonStandardLevels = [0, 1, 2, 4, 8, 12, 16, 20];
 
-export function commonStandardAssignments(basis, unit, stock, volume) {
-  const byVolume = basis === "volume";
-  if (byVolume && (!Number.isFinite(stock) || stock <= 0)) {
-    throw new Error("请输入大于 0 的 BSA 标准液浓度。");
-  }
-  if (byVolume && (!Number.isFinite(volume) || volume < commonStandardLevels.at(-1))) {
-    throw new Error("加工作液前的每孔体积须至少为 20 µL。");
-  }
-  const scale = byVolume ? stock * (1000 / volume) : unitScale[unit];
-  if (!Number.isFinite(commonStandardLevels.at(-1) * scale) || !(scale > 0)) {
-    throw new Error("换算后的标准品浓度超出可计算范围。");
-  }
-  return commonStandardLevels.map(level => ({
-    kind: level === 0 ? "blank" : "standard",
-    concentration: level === 0 ? undefined : level * scale,
-    standardVolume: byVolume ? level : undefined,
+export function commonStandardAssignments() {
+  const stockUgPerMl = 1000;
+  const wellVolumeUl = 20;
+  return commonStandardLevels.map(standardVolume => ({
+    kind: standardVolume === 0 ? "blank" : "standard",
+    concentration: standardVolume === 0 ? undefined : (stockUgPerMl * standardVolume) / wellVolumeUl,
+    standardVolume,
   }));
 }
 

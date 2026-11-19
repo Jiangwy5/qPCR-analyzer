@@ -65,8 +65,6 @@ h3 { margin: 0; font-size: 14px; }
 .standard-preset summary { font-size: 13px; font-weight: 650; cursor: pointer; }
 .standard-preset summary .hint { margin-left: 5px; font-weight: 400; }
 .standard-preset .actions { margin-top: 8px; }
-.preset-fields { display: flex; align-items: end; flex-wrap: wrap; gap: 8px 12px; margin-top: 9px; }
-.preset-fields input { max-width: 175px; }
 
 .plate-workspace { display: grid; grid-template-columns: minmax(0, 1fr) 248px; align-items: start; gap: 16px; }
 .plate-scroll, .table-scroll { overflow: auto; border: 1px solid #e1e7f0; border-radius: 10px; }

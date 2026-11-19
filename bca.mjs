@@ -1,15 +1,14 @@
 import {
   analyzePlate, calculateLoading, calculatePreparation, commonStandardAssignments,
   commonStandardLevels, unitLabel, unitScale,
-} from "./bca-core.mjs?v=standard-preset";
+} from "./bca-core.mjs?v=standard-template";
 
 const byId = id => document.getElementById(id);
 const rowNames = [..."ABCDEFGH"];
 const columnCount = 12;
 const storageKey = "labToolsBcaPlateV1";
 const wbSettingsIds = ["wb-stock", "wb-buffer", "wb-added", "wb-mass"];
-const presetSettingsIds = ["preset-basis", "preset-stock", "preset-volume"];
-const settingsIds = ["unit", "blank-mode", "model", "cv-limit", ...wbSettingsIds, ...presetSettingsIds];
+const settingsIds = ["unit", "blank-mode", "model", "cv-limit", ...wbSettingsIds];
 const statusText = {
   ok: "范围内",
   below: "低于标准曲线范围",
@@ -296,37 +295,14 @@ function updateAssignmentFields() {
   byId("standard-unit").textContent = unitLabel[byId("unit").value];
 }
 
-function readStandardPreset() {
-  return commonStandardAssignments(
-    byId("preset-basis").value,
-    byId("unit").value,
-    numericValue(byId("preset-stock")),
-    numericValue(byId("preset-volume")),
-  );
-}
-
 function updateStandardPreset() {
-  const byVolume = byId("preset-basis").value === "volume";
-  byId("preset-levels").textContent = commonStandardLevels.join(" · ");
-  for (const field of document.querySelectorAll(".preset-volume-field")) field.hidden = !byVolume;
-  byId("preset-volume-hint").hidden = !byVolume;
-  try {
-    const unit = byId("unit").value;
-    const values = readStandardPreset().map(well => format((well.concentration ?? 0) / unitScale[unit]));
-    showMessage("preset-preview", `拟合使用的标准品浓度（${unitLabel[unit]}） ${values.join("、")}`);
-  } catch (error) {
-    showMessage("preset-preview", error.message, true);
-  }
+  const unit = byId("unit").value;
+  const values = commonStandardAssignments().map(well => format((well.concentration ?? 0) / unitScale[unit]));
+  showMessage("preset-preview", `换算后的浓度（${unitLabel[unit]}） ${values.join("、")}`);
 }
 
 function applyStandardPreset(indices) {
-  let assignments;
-  try {
-    assignments = readStandardPreset();
-  } catch (error) {
-    showMessage("preset-feedback", error.message, true);
-    return;
-  }
+  const assignments = commonStandardAssignments();
   const sampleWells = indices.filter(index => wells[index].kind === "sample").map(index => wells[index].address);
   if (sampleWells.length && !confirm(`将把 ${sampleWells.join("、")} 从样品改为标准样孔。保留读数，继续套用？`)) return;
   indices.forEach((index, offset) => {
@@ -752,14 +728,8 @@ function exportWorkbook() {
 restoreDraft();
 createPlate();
 updateAssignmentFields();
+byId("preset-levels").textContent = `${commonStandardLevels.join(" · ")} µL`;
 updateStandardPreset();
-for (const id of presetSettingsIds) {
-  byId(id).addEventListener("input", () => {
-    showMessage("preset-feedback", "");
-    updateStandardPreset();
-    saveDraft();
-  });
-}
 byId("preset-default").addEventListener("click", () => applyStandardPreset(commonStandardLevels.map((_, index) => index)));
 byId("preset-selected").addEventListener("click", () => applyStandardPreset([...selected].sort((a, b) => a - b)));
 byId("role").addEventListener("change", updateAssignmentFields);

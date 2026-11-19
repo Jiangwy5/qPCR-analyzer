@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BCA 蛋白定量与 WB 配样 · 实验室计算工具</title>
   <link rel="stylesheet" href="./lab-nav.css">
-  <link rel="stylesheet" href="./bca.css?v=standard-preset">
+  <link rel="stylesheet" href="./bca.css?v=standard-template">
   <script defer src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-  <script type="module" src="./bca.mjs?v=standard-preset"></script>
+  <script type="module" src="./bca.mjs?v=standard-template"></script>
 </head>
 <body>
   <header class="site-header">
@@ -38,22 +38,8 @@
       </div>
       <details class="standard-preset">
         <summary>常用标准样 <span class="hint" id="preset-levels"></span></summary>
-        <div class="preset-fields">
-          <label class="field">数字含义
-            <select id="preset-basis">
-              <option value="volume">BSA 标准液加样体积（µL，E112 默认）</option>
-              <option value="concentration">标准品浓度（当前单位）</option>
-            </select>
-          </label>
-          <label class="field preset-volume-field">BSA 标准液浓度（mg/mL）
-            <input id="preset-stock" type="number" step="any" min="0" inputmode="decimal" value="1">
-          </label>
-          <label class="field preset-volume-field">加工作液前每孔体积（µL）
-            <input id="preset-volume" type="number" step="any" min="0" inputmode="decimal" value="20">
-          </label>
-        </div>
+        <p class="hint">诺唯赞 E112。BSA 标准液为 1 mg/mL，加入工作液前每孔为 20 µL。</p>
         <p id="preset-preview" class="hint" aria-live="polite"></p>
-        <p class="hint" id="preset-volume-hint">标准孔先补至指定体积，样品孔使用相同的取样体积。</p>
         <div class="actions">
           <button id="preset-default" type="button">套用至 A1–A8</button>
           <button id="preset-selected" type="button" disabled>套用至所选 8 孔</button>
